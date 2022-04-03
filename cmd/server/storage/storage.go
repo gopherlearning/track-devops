@@ -7,7 +7,6 @@ import (
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
-	"github.com/sirupsen/logrus"
 )
 
 type Storage struct {
@@ -34,15 +33,15 @@ var _ repositories.Repository = new(Storage)
 func (s *Storage) Get(target, metric, name string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	logrus.Warn(target)
-	logrus.Warn(metric)
-	logrus.Warn(name)
-	if v, ok := s.v[metrics.MetricType(metric)]; ok {
-		logrus.Info(1, v)
-		if v, ok := s.v[metrics.MetricType(metric)][name]; ok {
-			logrus.Info(2, v)
+	// logrus.Warn(target)
+	// logrus.Warn(metric)
+	// logrus.Warn(name)
+	if _, ok := s.v[metrics.MetricType(metric)]; ok {
+		// logrus.Info(1, v)
+		if _, ok := s.v[metrics.MetricType(metric)][name]; ok {
+			// logrus.Info(2, v)
 			if value, ok := s.v[metrics.MetricType(metric)][name][target]; ok {
-				logrus.Info(3, fmt.Sprint(value))
+				// logrus.Info(3, fmt.Sprint(value))
 				return fmt.Sprint(value)
 			}
 		}
@@ -52,7 +51,6 @@ func (s *Storage) Get(target, metric, name string) string {
 func (s *Storage) Update(target, metric, name, value string) error {
 	switch {
 	case len(target) == 0:
-		fmt.Println(target)
 		return repositories.ErrWrongTarget
 	case len(metric) == 0:
 		return repositories.ErrWrongMetricType
@@ -85,13 +83,13 @@ func (s *Storage) Update(target, metric, name, value string) error {
 			return repositories.ErrWrongMetricValue
 		}
 		if s.v[metricType][name][target] == nil {
-			s.v[metricType][name][target] = make([]int, 0)
+			s.v[metricType][name][target] = 0
 		}
-		mm, ok := s.v[metricType][name][target].([]int)
+		mm, ok := s.v[metricType][name][target].(int)
 		if !ok {
 			return repositories.ErrWrongValueInStorage
 		}
-		s.v[metricType][name][target] = append(mm, m)
+		s.v[metricType][name][target] = mm + m
 	case metrics.GaugeType:
 		m, err := strconv.ParseFloat(value, 64)
 		if err != nil {

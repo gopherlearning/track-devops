@@ -40,7 +40,7 @@ func TestEchoHandler_Get(t *testing.T) {
 			status:  http.StatusOK,
 			value:   "123",
 			target:  "192.0.2.1",
-			want:    "[123]",
+			want:    "123",
 		},
 		{
 			name: "Несуществующее значение",
@@ -124,8 +124,8 @@ func TestEchoHandler_Update(t *testing.T) {
 			want: want{
 				statusCode: http.StatusOK,
 				body:       "",
-				value1:     []int{100},
-				value2:     []int{100, 101},
+				value1:     100,
+				value2:     201,
 			},
 		},
 		{

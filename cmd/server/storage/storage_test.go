@@ -34,7 +34,7 @@ func TestStorage_List(t *testing.T) {
 			name: "Наполненный Storage",
 			fields: fields{v: map[metrics.MetricType]map[string]map[string]interface{}{
 				metrics.CounterType: {
-					"PollCount": map[string]interface{}{"1.1.1.1": []int{1, 2}},
+					"PollCount": map[string]interface{}{"1.1.1.1": int(3)},
 				},
 				metrics.GaugeType: {
 					"RandomValue": map[string]interface{}{"1.1.1.2": float64(11.22)},
@@ -44,8 +44,8 @@ func TestStorage_List(t *testing.T) {
 				targets: nil,
 			},
 			want: map[string][]string{
-				"1.1.1.1": []string{"counter - PollCount - [1 2]"},
-				"1.1.1.2": []string{"gauge - RandomValue - 11.22"},
+				"1.1.1.1": {"counter - PollCount - 3"},
+				"1.1.1.2": {"gauge - RandomValue - 11.22"},
 			},
 		},
 	}
@@ -233,10 +233,10 @@ func TestStorage_Update(t *testing.T) {
 			},
 			storage: &Storage{
 				v: map[metrics.MetricType]map[string]map[string]interface{}{
-					metrics.CounterType: {"BlaBla": map[string]interface{}{"1.1.1.1": 1}},
+					metrics.CounterType: {"BlaBla": map[string]interface{}{"1.1.1.1": 10}},
 				},
 			},
-			err: repositories.ErrWrongValueInStorage,
+			err: nil,
 		},
 		// {
 		// 	name: "Неправильная запись gauge в хранилище",
@@ -254,7 +254,8 @@ func TestStorage_Update(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.storage.Update(tt.args.target, tt.args.metric, tt.args.name, tt.args.value), tt.err)
+			err := tt.storage.Update(tt.args.target, tt.args.metric, tt.args.name, tt.args.value)
+			assert.Equal(t, err, tt.err)
 		})
 	}
 }
