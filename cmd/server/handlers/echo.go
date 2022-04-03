@@ -69,7 +69,7 @@ func (h *EchoHandler) UpdateMetric(c echo.Context) error {
 		case repositories.ErrWrongMetricValue:
 			return c.HTML(http.StatusBadRequest, err.Error())
 		case repositories.ErrWrongMetricType:
-			return c.HTML(http.StatusNotFound, err.Error())
+			return c.HTML(http.StatusNotImplemented, err.Error())
 		case repositories.ErrWrongValueInStorage:
 			return c.HTML(http.StatusNotImplemented, err.Error())
 		default:

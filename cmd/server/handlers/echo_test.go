@@ -192,7 +192,7 @@ func TestEchoHandler_Update(t *testing.T) {
 			request1: "/update/unknown/testCounter/100",
 			request2: "",
 			want: want{
-				statusCode: http.StatusNotFound,
+				statusCode: http.StatusNotImplemented,
 				body:       "нет метрики такого типа",
 				value1:     "",
 				value2:     "",
