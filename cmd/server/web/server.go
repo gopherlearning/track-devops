@@ -9,17 +9,15 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type Server struct {
+type EchoServer struct {
 	serv *echo.Echo
 }
 
-func NewServer(listen string, h *handlers.ClassicHandler) *Server {
-	e := echo.New()
-	e.Server.Addr = listen
-	e.POST("/update/:type/:name/:value", echo.WrapHandler(http.HandlerFunc(h.Update)))
-	return &Server{serv: e}
+func NewEchoServer(h handlers.Handler) Web {
+	return &EchoServer{serv: h.Echo()}
 }
-func (s *Server) Start() error {
+func (s *EchoServer) Start(listen string) error {
+	s.serv.Server.Addr = listen
 	err := s.serv.Server.ListenAndServe()
 	if err == http.ErrServerClosed {
 		return nil
@@ -27,7 +25,7 @@ func (s *Server) Start() error {
 	return err
 }
 
-func (s *Server) Shutdown() error {
+func (s *EchoServer) Stop() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 

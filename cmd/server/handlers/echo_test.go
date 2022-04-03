@@ -6,15 +6,82 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/gopherlearning/track-devops/cmd/server/storage"
+	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestHandler_Update(t *testing.T) {
+func TestEchoHandler_Get(t *testing.T) {
+	type fields struct {
+		v map[metrics.MetricType]map[string]map[string]interface{}
+	}
+	tests := []struct {
+		name string
+		// fields  fields
+		request string
+		status  int
+		target  string
+		value   string
+		want    string
+	}{
+		{
+			name: "Существующее значение",
+			// fields: fields{v: map[metrics.MetricType]map[string]map[string]interface{}{
+			// 	metrics.CounterType: {
+			// 		"PollCount": map[string]interface{}{"127.0.0.1": []int{123}},
+			// 	},
+			// }},
+			request: "/value/counter/PollCount",
+			status:  http.StatusOK,
+			value:   "123",
+			target:  "192.0.2.1",
+			want:    "[123]",
+		},
+		{
+			name: "Несуществующее значение",
+			// fields: fields{v: map[metrics.MetricType]map[string]map[string]interface{}{
+			// 	metrics.CounterType: {
+			// 		"PollCount": map[string]interface{}{"192.0.2.1": []int{123}},
+			// 	},
+			// }},
+			request: "/value/counter/Unknown",
+			status:  http.StatusNotFound,
+			target:  "192.0.2.1",
+			want:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := storage.NewStorage()
+			if len(tt.want) != 0 {
+				m := strings.Split(tt.request, "/")
+				s.Update(tt.target, m[2], m[3], tt.value)
+			}
+			handler := NewEchoHandler(s)
+			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
+			w := httptest.NewRecorder()
+			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
+			result := w.Result()
+
+			assert.Equal(t, tt.status, result.StatusCode)
+			body, err := ioutil.ReadAll(result.Body)
+			require.NoError(t, err)
+			err = result.Body.Close()
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, string(body))
+
+		})
+	}
+
+}
+func TestEchoHandler_Update(t *testing.T) {
 	type fields struct {
 		s repositories.Repository
 	}
@@ -70,7 +137,7 @@ func TestHandler_Update(t *testing.T) {
 			request2: "",
 			want: want{
 				statusCode: http.StatusNotFound,
-				body:       "",
+				body:       "{\"message\":\"Not Found\"}\n",
 				value1:     "",
 				value2:     "",
 			},
@@ -98,7 +165,7 @@ func TestHandler_Update(t *testing.T) {
 			request2: "",
 			want: want{
 				statusCode: http.StatusNotFound,
-				body:       "",
+				body:       "{\"message\":\"Not Found\"}\n",
 				value1:     "",
 				value2:     "",
 			},
@@ -112,7 +179,7 @@ func TestHandler_Update(t *testing.T) {
 			request2: "",
 			want: want{
 				statusCode: http.StatusBadRequest,
-				body:       "",
+				body:       "неверное значение метрики",
 				value1:     "",
 				value2:     "",
 			},
@@ -126,7 +193,7 @@ func TestHandler_Update(t *testing.T) {
 			request2: "",
 			want: want{
 				statusCode: http.StatusNotFound,
-				body:       "",
+				body:       "нет метрики такого типа",
 				value1:     "",
 				value2:     "",
 			},
@@ -135,12 +202,12 @@ func TestHandler_Update(t *testing.T) {
 			name:   "TestIteration2/TestUnknownHandlers/update_invalid_method",
 			fields: fields{s: storage.NewStorage()},
 			// content:  "text/plain",
-			method:   http.MethodPost,
+			method:   http.MethodGet,
 			request1: "/updater/counter/testCounter/100",
 			request2: "",
 			want: want{
 				statusCode: http.StatusNotFound,
-				body:       "нет метрики такого типа",
+				body:       "{\"message\":\"Not Found\"}\n",
 				value1:     "",
 				value2:     "",
 			},
@@ -162,13 +229,12 @@ func TestHandler_Update(t *testing.T) {
 		{
 			name:     "Неправильный http метод",
 			fields:   fields{s: storage.NewStorage()},
-			content:  "",
 			method:   http.MethodGet,
 			request1: "/update/counter/PollCount/2",
 			request2: "/update/counter/PollCount/3",
 			want: want{
 				statusCode: http.StatusMethodNotAllowed,
-				body:       "Only POST requests are allowed!\n",
+				body:       "{\"message\":\"Method Not Allowed\"}\n",
 				value1:     nil,
 				value2:     nil,
 			},
@@ -181,8 +247,8 @@ func TestHandler_Update(t *testing.T) {
 			request1: "/update/counter/PollCount/2.2",
 			request2: "/update/counter/PollCount/3.1",
 			want: want{
-				statusCode: http.StatusNotImplemented,
-				body:       "нет метрики такого типа",
+				statusCode: http.StatusBadRequest,
+				body:       "неверное значение метрики",
 				value1:     "",
 				value2:     "",
 			},
@@ -192,14 +258,10 @@ func TestHandler_Update(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := &ClassicHandler{
-				s: tt.fields.s,
-			}
+			handler := NewEchoHandler(tt.fields.s)
 			request := httptest.NewRequest(tt.method, tt.request1, nil)
-			// request.Header.Add("Content-Type", tt.content)
 			w := httptest.NewRecorder()
-			h := http.HandlerFunc(handler.Update)
-			h.ServeHTTP(w, request)
+			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
 			result := w.Result()
 
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
@@ -222,8 +284,8 @@ func TestHandler_Update(t *testing.T) {
 			request = httptest.NewRequest(tt.method, tt.request2, nil)
 			request.Header.Add("Content-Type", tt.content)
 			w = httptest.NewRecorder()
-			h = http.HandlerFunc(handler.Update)
-			h.ServeHTTP(w, request)
+			handler.Echo().ServeHTTP(w, request)
+
 			result = w.Result()
 
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)

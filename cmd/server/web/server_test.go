@@ -1,8 +1,16 @@
 package web
 
 import (
-	"reflect"
+	"fmt"
+	"net"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/gopherlearning/track-devops/cmd/server/handlers"
+	"github.com/gopherlearning/track-devops/cmd/server/storage"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestServer(t *testing.T) {
@@ -17,10 +25,25 @@ func TestServer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := NewServer(tt.listen, nil)
-			if !reflect.DeepEqual(got, nil) {
-				t.Errorf("NewServer() = %v, want %v", got, nil)
-			}
+			s := NewEchoServer(handlers.NewEchoHandler(storage.NewStorage()))
+			require.NotNil(t, s)
+			wg := sync.WaitGroup{}
+			wg.Add(2)
+			time.AfterFunc(2*time.Second, func() {
+				t.Run("Test Stop()", func(t *testing.T) {
+					defer wg.Done()
+					conn, err := net.DialTimeout("tcp", tt.listen, time.Second)
+					assert.NoError(t, err)
+					assert.NotNil(t, conn)
+					assert.NoError(t, s.Stop())
+				})
+			})
+			t.Run(fmt.Sprintf("Test Start(%s)", tt.listen), func(t *testing.T) {
+				defer wg.Done()
+				err := s.Start(tt.listen)
+				require.NoError(t, err)
+			})
+
 		})
 	}
 }

@@ -109,6 +109,17 @@ func TestStorage_Update(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "Несуществующий тип",
+			args: args{
+				target: "1",
+				metric: "unknown",
+				name:   "1",
+				value:  "1",
+			},
+			storage: NewStorage(),
+			err:     repositories.ErrWrongMetricType,
+		},
+		{
 			name: "Нулевой target",
 			args: args{
 				target: "",
@@ -212,21 +223,21 @@ func TestStorage_Update(t *testing.T) {
 			storage: NewStorage(),
 			err:     repositories.ErrWrongMetricValue,
 		},
-		// {
-		// 	name: "Правильная запись couter в хранилище",
-		// 	args: args{
-		// 		target: "1.1.1.1",
-		// 		metric: "counter",
-		// 		name:   "BlaBla",
-		// 		value:  "123",
-		// 	},
-		// 	storage: &Storage{
-		// 		v: map[metrics.MetricType]map[string]map[string]interface{}{
-		// 			metrics.CounterType: {"BlaBla": map[string]interface{}{"1.1.1.1": 1}},
-		// 		},
-		// 	},
-		// 	err: nil,
-		// },
+		{
+			name: "Правильная запись couter в хранилище",
+			args: args{
+				target: "1.1.1.1",
+				metric: "counter",
+				name:   "BlaBla",
+				value:  "123",
+			},
+			storage: &Storage{
+				v: map[metrics.MetricType]map[string]map[string]interface{}{
+					metrics.CounterType: {"BlaBla": map[string]interface{}{"1.1.1.1": 1}},
+				},
+			},
+			err: repositories.ErrWrongValueInStorage,
+		},
 		// {
 		// 	name: "Неправильная запись gauge в хранилище",
 		// 	args: args{

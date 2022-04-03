@@ -2,12 +2,12 @@ package storage
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"sync"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
+	"github.com/sirupsen/logrus"
 )
 
 type Storage struct {
@@ -26,11 +26,29 @@ func NewStorage() *Storage {
 	}
 }
 
-var rMetricURL = regexp.MustCompile(`^.*\/(gauge|counter)\/(\w+)\/(-?\S+)$`)
+// var rMetricURL = regexp.MustCompile(`^.*\/(gauge|counter)\/(\w+)\/(-?\S+)$`)
 
 // var rMetricURL = regexp.MustCompile(`^.*\/(\w+)\/(\w+)\/(-?[0-9\.]+)$`)
 var _ repositories.Repository = new(Storage)
 
+func (s *Storage) Get(target, metric, name string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	logrus.Warn(target)
+	logrus.Warn(metric)
+	logrus.Warn(name)
+	if v, ok := s.v[metrics.MetricType(metric)]; ok {
+		logrus.Info(1, v)
+		if v, ok := s.v[metrics.MetricType(metric)][name]; ok {
+			logrus.Info(2, v)
+			if value, ok := s.v[metrics.MetricType(metric)][name][target]; ok {
+				logrus.Info(3, fmt.Sprint(value))
+				return fmt.Sprint(value)
+			}
+		}
+	}
+	return ""
+}
 func (s *Storage) Update(target, metric, name, value string) error {
 	switch {
 	case len(target) == 0:

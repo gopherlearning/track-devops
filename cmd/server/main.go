@@ -19,8 +19,8 @@ const (
 
 func main() {
 	store := storage.NewStorage()
-	h := handlers.NewHandler(store)
-	s := web.NewServer(serverAddr+":"+serverPort, h)
+	h := handlers.NewEchoHandler(store)
+	s := web.NewEchoServer(h)
 
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
@@ -41,12 +41,12 @@ func main() {
 		}
 	}()
 	go func() {
-		err := s.Start()
+		err := s.Start(serverAddr + ":" + serverPort)
 		if err != nil {
 			fmt.Println(222, err)
 		}
 	}()
 	sig := <-terminate
-	s.Shutdown()
+	s.Stop()
 	fmt.Printf("Server stoped by signal \"%v\"\n", sig)
 }

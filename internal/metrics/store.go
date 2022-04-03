@@ -109,12 +109,13 @@ func (s *Store) Save(client *http.Client, baseURL *string) error {
 				}
 				defer resp.Body.Close()
 
-				if resp.StatusCode != http.StatusCreated {
+				if resp.StatusCode != http.StatusOK {
 					body, err := ioutil.ReadAll(resp.Body)
 					if err != nil {
 						errC <- err
 						return
 					}
+					errC <- nil
 					fmt.Println("save failed: ", string(body))
 					return
 				}
