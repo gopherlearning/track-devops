@@ -41,9 +41,9 @@ func (h *EchoHandler) ListMetrics(c echo.Context) error {
 	b := make([]byte, 0)
 	buf := bytes.NewBuffer(b)
 	for target, values := range h.s.List() {
-		fmt.Fprintf(buf, `Target "%s":%s`, target, "\n")
+		fmt.Fprintf(buf, `<b>Target "%s":</b></br>`, target)
 		for _, v := range values {
-			fmt.Fprintf(buf, "\t%s\n", v)
+			fmt.Fprintf(buf, "  %s<br>", v)
 		}
 	}
 	return c.HTMLBlob(http.StatusOK, buf.Bytes())

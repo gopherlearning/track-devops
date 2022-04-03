@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	serverAddr = "127.0.0.1"
+	serverAddr = "0.0.0.0"
 	serverPort = "8080"
 )
 

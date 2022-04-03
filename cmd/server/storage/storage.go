@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -96,7 +97,6 @@ func (s *Storage) List(targets ...string) map[string][]string {
 	defer s.mu.RUnlock()
 	res := make(map[string][]string)
 	for mType := range s.v {
-
 		for mName := range s.v[mType] {
 			for target, value := range s.v[mType][mName] {
 				if _, ok := res[target]; !ok {
@@ -104,6 +104,10 @@ func (s *Storage) List(targets ...string) map[string][]string {
 				}
 				res[target] = append(res[target], fmt.Sprintf(`%s - %s - %v`, mType, mName, value))
 			}
+		}
+		for k, v := range res {
+			sort.Strings(v)
+			res[k] = v
 		}
 	}
 	return res
