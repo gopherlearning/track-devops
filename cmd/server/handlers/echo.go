@@ -31,9 +31,6 @@ func NewEchoHandler(s repositories.Repository) Handler {
 func (h *EchoHandler) Echo() *echo.Echo { return h.e }
 
 func (h *EchoHandler) GetMetric(c echo.Context) error {
-	// logrus.Info(c.Param("type"))
-	// logrus.Info(c.Param("name"))
-	// logrus.Info(c.RealIP())
 	if v := h.s.Get(c.RealIP(), c.Param("type"), c.Param("name")); len(v) != 0 {
 		return c.HTML(http.StatusOK, v)
 	}
