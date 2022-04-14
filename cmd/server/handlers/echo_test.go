@@ -10,16 +10,15 @@ import (
 	"testing"
 
 	"github.com/gopherlearning/track-devops/cmd/server/storage"
-	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEchoHandler_Get(t *testing.T) {
-	type fields struct {
-		v map[metrics.MetricType]map[string]map[string]interface{}
-	}
+	// type fields struct {
+	// 	v map[metrics.MetricType]map[string]map[string]interface{}
+	// }
 	tests := []struct {
 		name string
 		// fields  fields
@@ -61,7 +60,7 @@ func TestEchoHandler_Get(t *testing.T) {
 			s := storage.NewStorage()
 			if len(tt.want) != 0 {
 				m := strings.Split(tt.request, "/")
-				s.Update(tt.target, m[2], m[3], tt.value)
+				require.NoError(t, s.Update(tt.target, m[2], m[3], tt.value))
 			}
 			handler := NewEchoHandler(s)
 			request := httptest.NewRequest(http.MethodGet, tt.request, nil)

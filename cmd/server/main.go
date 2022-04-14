@@ -47,6 +47,9 @@ func main() {
 		}
 	}()
 	sig := <-terminate
-	s.Stop()
+	err := s.Stop()
+	if err != nil {
+		fmt.Println(222, err)
+	}
 	fmt.Printf("Server stoped by signal \"%v\"\n", sig)
 }
