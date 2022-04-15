@@ -11,7 +11,8 @@ import (
 
 func TestStorage_List(t *testing.T) {
 	type fields struct {
-		v map[metrics.MetricType]map[string]map[string]interface{}
+		v       map[metrics.MetricType]map[string]map[string]interface{}
+		metrics map[string][]metrics.Metrics
 	}
 	type args struct {
 		targets []string
@@ -24,7 +25,7 @@ func TestStorage_List(t *testing.T) {
 	}{
 		{
 			name:   "Пустой Storage",
-			fields: fields{v: NewStorage().v},
+			fields: fields{v: NewStorage().v, metrics: NewStorage().metrics},
 			args: args{
 				targets: nil,
 			},
@@ -39,7 +40,8 @@ func TestStorage_List(t *testing.T) {
 				metrics.GaugeType: {
 					"RandomValue": map[string]interface{}{"1.1.1.2": float64(11.22)},
 				},
-			}},
+			},
+			},
 			args: args{
 				targets: nil,
 			},
@@ -67,7 +69,8 @@ func TestStorage_List(t *testing.T) {
 
 func TestStorage_ListProm(t *testing.T) {
 	type fields struct {
-		v map[metrics.MetricType]map[string]map[string]interface{}
+		v       map[metrics.MetricType]map[string]map[string]interface{}
+		metrics map[string][]metrics.Metrics
 	}
 	type args struct {
 		targets []string
@@ -80,7 +83,7 @@ func TestStorage_ListProm(t *testing.T) {
 	}{
 		{
 			name:   "Не реализована",
-			fields: fields{v: NewStorage().v},
+			fields: fields{v: NewStorage().v, metrics: NewStorage().metrics},
 			args:   args{targets: nil},
 		},
 	}
@@ -97,9 +100,7 @@ func TestStorage_ListProm(t *testing.T) {
 func TestStorage_Update(t *testing.T) {
 	type args struct {
 		target string
-		metric string
-		name   string
-		value  string
+		metric metrics.Metrics
 	}
 	tests := []struct {
 		name    string
@@ -112,9 +113,11 @@ func TestStorage_Update(t *testing.T) {
 			name: "Несуществующий тип",
 			args: args{
 				target: "1",
-				metric: "unknown",
-				name:   "1",
-				value:  "1",
+				metric: metrics.Metrics{
+					MType: "unknown",
+					ID:    "1",
+					Delta: metrics.GetInt64Pointer(1),
+				},
 			},
 			storage: NewStorage(),
 			err:     repositories.ErrWrongMetricType,
@@ -123,117 +126,159 @@ func TestStorage_Update(t *testing.T) {
 			name: "Нулевой target",
 			args: args{
 				target: "",
-				metric: "1",
-				name:   "1",
-				value:  "1",
+				metric: metrics.Metrics{
+					MType: "1",
+					ID:    "1",
+					Delta: metrics.GetInt64Pointer(1),
+				},
 			},
-			err: repositories.ErrWrongTarget,
+			storage: NewStorage(),
+			err:     repositories.ErrWrongTarget,
 		},
 		{
 			name: "Нулевой metric",
 			args: args{
 				target: "1",
-				metric: "",
-				name:   "1",
-				value:  "1",
+				metric: metrics.Metrics{
+					MType: "",
+					ID:    "1",
+					Delta: metrics.GetInt64Pointer(1),
+				},
 			},
-			err: repositories.ErrWrongMetricType,
+			storage: NewStorage(),
+			err:     repositories.ErrWrongMetricType,
 		},
 		{
 			name: "Нулевой name",
 			args: args{
 				target: "1",
-				metric: "1",
-				name:   "",
-				value:  "1",
+				metric: metrics.Metrics{
+					MType: "1",
+					ID:    "",
+					Delta: metrics.GetInt64Pointer(1),
+				},
 			},
-			err: repositories.ErrWrongMetricType,
+			storage: NewStorage(),
+			err:     repositories.ErrWrongMetricID,
 		},
 		{
 			name: "Нулевой value",
 			args: args{
 				target: "1",
-				metric: "1",
-				name:   "1",
-				value:  "",
-			},
-			err: repositories.ErrWrongMetricValue,
-		},
-		{
-			name: "Неправильная метрика",
-			args: args{
-				target: "1.1.1.1",
-				metric: "11111",
-			},
-			err: repositories.ErrWrongMetricType,
-		},
-		{
-			name: "Неправильно создано хранилище",
-			args: args{
-				target: "1.1.1.1",
-				metric: "gauge",
-				name:   "BlaBla",
-				value:  "123.456",
-			},
-			storage: &Storage{v: map[metrics.MetricType]map[string]map[string]interface{}{}},
-			err:     repositories.ErrWrongValueInStorage,
-		},
-		{
-			name: "Правильная метрика gauge",
-			args: args{
-				target: "1.1.1.1",
-				metric: "gauge",
-				name:   "BlaBla",
-				value:  "123.456",
-			},
-			storage: NewStorage(),
-			err:     nil,
-		},
-		{
-			name: "Неправильная метрика gauge",
-			args: args{
-				target: "1.1.1.1",
-				metric: "gauge",
-				name:   "BlaBla",
-				value:  "none",
-			},
-			storage: NewStorage(),
-			// не тестируется, так как отсекается регулярным выражением
-			err: repositories.ErrWrongMetricValue,
-		},
-		{
-			name: "Правильная метрика couter",
-			args: args{
-				target: "1.1.1.1",
-				metric: "counter",
-				name:   "BlaBla",
-				value:  "123",
-			},
-			storage: NewStorage(),
-			err:     nil,
-		},
-		{
-			name: "Неправильная метрика couter",
-			args: args{
-				target: "1.1.1.1",
-				metric: "counter",
-				name:   "BlaBla",
-				value:  "123.123",
+				metric: metrics.Metrics{
+					MType: "counter",
+					ID:    "1",
+				},
 			},
 			storage: NewStorage(),
 			err:     repositories.ErrWrongMetricValue,
 		},
+		// {
+		// 	name: "Неправильная метрика",
+		// 	args: args{
+		// 		target: "1.1.1.1",
+		// 		metric: metrics.Metrics{
+		// 			MType: "",
+		// 			ID:    "",
+		// 			Delta: metrics.GetInt64Pointer(1),
+		// 		},
+		// 		metric: "11111",
+		// 	},
+		// 	err: repositories.ErrWrongMetricType,
+		// },
+		// {
+		// 	name: "Неправильно создано хранилище",
+		// 	args: args{
+		// 		target: "1.1.1.1",
+		// 		metric: metrics.Metrics{
+		// 			MType: "",
+		// 			ID:    "",
+		// 			Delta: metrics.GetInt64Pointer(1),
+		// 		},
+		// 		metric: "gauge",
+		// 		name:   "BlaBla",
+		// 		value:  "123.456",
+		// 	},
+		// 	storage: &Storage{v: map[metrics.MetricType]map[string]map[string]interface{}{}},
+		// 	err:     repositories.ErrWrongValueInStorage,
+		// },
+		{
+			name: "Правильная метрика gauge",
+			args: args{
+				target: "1.1.1.1",
+				metric: metrics.Metrics{
+					MType: "gauge",
+					ID:    "BlaBla",
+					Value: metrics.GetFloat64Pointer(123.456),
+				},
+			},
+			storage: NewStorage(),
+			err:     nil,
+		},
+		// {
+		// 	name: "Неправильная метрика gauge",
+		// 	args: args{
+		// 		target: "1.1.1.1",
+		// 		metric: metrics.Metrics{
+		// 			MType: "gauge",
+		// 			ID:    "BlaBla",
+		// 			Value: metrics.GetInt64Pointer(1),
+		// 		},
+		// 		metric: "gauge",
+		// 		name:   "BlaBla",
+		// 		value:  "none",
+		// 	},
+		// 	storage: NewStorage(),
+		// 	// не тестируется, так как отсекается регулярным выражением
+		// 	err: repositories.ErrWrongMetricValue,
+		// },
+		{
+			name: "Правильная метрика couter",
+			args: args{
+				target: "1.1.1.1",
+				metric: metrics.Metrics{
+					MType: "counter",
+					ID:    "BlaBla",
+					Delta: metrics.GetInt64Pointer(123),
+				},
+			},
+			storage: NewStorage(),
+			err:     nil,
+		},
+		// {
+		// 	name: "Неправильная метрика couter",
+		// 	args: args{
+		// 		target: "1.1.1.1",
+		// 		metric: metrics.Metrics{
+		// 			MType: "",
+		// 			ID:    "",
+		// 			Delta: metrics.GetInt64Pointer(1),
+		// 		},
+		// 		metric: "counter",
+		// 		name:   "BlaBla",
+		// 		value:  "123.123",
+		// 	},
+		// 	storage: NewStorage(),
+		// 	err:     repositories.ErrWrongMetricValue,
+		// },
 		{
 			name: "Правильная запись couter в хранилище",
 			args: args{
 				target: "1.1.1.1",
-				metric: "counter",
-				name:   "BlaBla",
-				value:  "123",
+				metric: metrics.Metrics{
+					MType: "counter",
+					ID:    "BlaBla",
+					Delta: metrics.GetInt64Pointer(123),
+				},
 			},
 			storage: &Storage{
-				v: map[metrics.MetricType]map[string]map[string]interface{}{
-					metrics.CounterType: {"BlaBla": map[string]interface{}{"1.1.1.1": 10}},
+				// v: map[metrics.MetricType]map[string]map[string]interface{}{
+				// 	metrics.CounterType: {"BlaBla": map[string]interface{}{"1.1.1.1": 10}},
+				// },
+				metrics: map[string][]metrics.Metrics{
+					"1.1.1.1": {
+						{ID: "BlaBla", MType: string(metrics.CounterType), Delta: metrics.GetInt64Pointer(10)},
+					},
 				},
 			},
 			err: nil,
@@ -254,7 +299,8 @@ func TestStorage_Update(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.storage.Update(tt.args.target, tt.args.metric, tt.args.name, tt.args.value)
+			err := tt.storage.UpdateMetric(tt.args.target, tt.args.metric)
+			// err := tt.storage.Update(tt.args.target, tt.args.metric, tt.args.name, tt.args.value)
 			assert.Equal(t, err, tt.err)
 		})
 	}

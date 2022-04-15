@@ -4,6 +4,7 @@ import "errors"
 
 var (
 	ErrWrongMetricURL      = errors.New("неправильный формат метрики")
+	ErrWrongMetricID       = errors.New("неправильное имя метрики")
 	ErrWrongMetricType     = errors.New("нет метрики такого типа")
 	ErrWrongMetricValue    = errors.New("неверное значение метрики")
 	ErrWrongTarget         = errors.New("неправильный источник метрик")

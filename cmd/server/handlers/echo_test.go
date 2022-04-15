@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -10,7 +11,9 @@ import (
 	"testing"
 
 	"github.com/gopherlearning/track-devops/cmd/server/storage"
+	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,29 +28,19 @@ func TestEchoHandler_Get(t *testing.T) {
 		request string
 		status  int
 		target  string
-		value   string
+		value   map[string]interface{}
 		want    string
 	}{
 		{
-			name: "Существующее значение",
-			// fields: fields{v: map[metrics.MetricType]map[string]map[string]interface{}{
-			// 	metrics.CounterType: {
-			// 		"PollCount": map[string]interface{}{"127.0.0.1": []int{123}},
-			// 	},
-			// }},
+			name:    "Существующее значение",
 			request: "/value/counter/PollCount",
 			status:  http.StatusOK,
-			value:   "123",
+			value:   map[string]interface{}{"counter": int64(123), "gauge": float64(0)},
 			target:  "192.0.2.1",
-			want:    "123",
+			want:    "counter - PollCount - 123",
 		},
 		{
-			name: "Несуществующее значение",
-			// fields: fields{v: map[metrics.MetricType]map[string]map[string]interface{}{
-			// 	metrics.CounterType: {
-			// 		"PollCount": map[string]interface{}{"192.0.2.1": []int{123}},
-			// 	},
-			// }},
+			name:    "Несуществующее значение",
 			request: "/value/counter/Unknown",
 			status:  http.StatusNotFound,
 			target:  "192.0.2.1",
@@ -60,7 +53,8 @@ func TestEchoHandler_Get(t *testing.T) {
 			s := storage.NewStorage()
 			if len(tt.want) != 0 {
 				m := strings.Split(tt.request, "/")
-				require.NoError(t, s.Update(tt.target, m[2], m[3], tt.value))
+				// require.NoError(t, s.Update(tt.target, m[2], m[3], tt.value))
+				require.NoError(t, s.UpdateMetric(tt.target, metrics.Metrics{MType: m[2], ID: m[3], Delta: metrics.GetInt64Pointer(tt.value["counter"].(int64)), Value: metrics.GetFloat64Pointer(tt.value["gauge"].(float64))}))
 			}
 			handler := NewEchoHandler(s)
 			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
@@ -299,6 +293,143 @@ func TestEchoHandler_Update(t *testing.T) {
 				match := rMetricURL.FindStringSubmatch(tt.request1)
 				assert.Equal(t, len(match), 4)
 				assert.Contains(t, tt.fields.s.List()["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value2))
+				fmt.Println(tt.name, tt.fields.s.List())
+			}
+		})
+	}
+}
+
+func TestEchoHandlerJSON(t *testing.T) {
+	type fields struct {
+		s repositories.Repository
+	}
+	type want struct {
+		statusCode1 int
+		statusCode2 int
+		resp1       interface{}
+		resp2       interface{}
+	}
+	tests := []struct {
+		name     string
+		fields   fields
+		content  string
+		request1 string
+		request2 string
+		body1    string
+		body2    string
+		method   string
+		want     want
+	}{
+		{
+			name:     "TestIteration2/TestCounterHandlersJSON",
+			fields:   fields{s: storage.NewStorage()},
+			content:  "application/json",
+			method:   http.MethodPost,
+			request1: "/update/",
+			body1:    `{"id":"PollCount","type":"counter","delta":1}`,
+			request2: "/value/",
+			body2:    `{"id":"PollCount","type":"counter"}`,
+			want: want{
+				statusCode1: http.StatusOK,
+				resp1:       ``,
+				statusCode2: http.StatusOK,
+				resp2:       `{"id":"PollCount","type":"counter","delta":1}` + "\n",
+			},
+		},
+		{
+			name:     "TestIteration2/TestGaugeHandlersJSON",
+			fields:   fields{s: storage.NewStorage()},
+			content:  "application/json",
+			method:   http.MethodPost,
+			request1: "/update/",
+			body1:    `{"id":"RandomValue","type":"gauge","value":1.1}`,
+			request2: "/value/",
+			body2:    `{"id":"RandomValue","type":"gauge"}`,
+			want: want{
+				statusCode1: http.StatusOK,
+				resp1:       ``,
+				statusCode2: http.StatusOK,
+				resp2:       `{"id":"RandomValue","type":"gauge","value":1.1}` + "\n",
+			},
+		},
+		// {
+		// 	name: "TestIteration2/TestGaugeHandlersJSONupdate",
+		// 	// fields: fields{s: &storage.Storage{
+		// 	// 	v: map[metrics.MetricType]map[string]map[string]interface{}{
+		// 	// 		metrics.GaugeType: map[string]map[string]interface{}{
+		// 	// 			"192.0.2.1": map[string]interface{}{
+		// 	// 				"RandomValue": metrics.RandomValue{v: 2.2},
+		// 	// 			},
+		// 	// 		},
+		// 	// 	},
+		// 	// }},
+		// 	fields:   fields{s: storage.NewStorage()},
+		// 	content:  "application/json",
+		// 	method:   http.MethodPost,
+		// 	request1: "/update/",
+		// 	body1:    `{"id":"RandomValue","type":"gauge","value":2.2}`,
+		// 	request2: "/value/",
+		// 	body2:    `{"id":"RandomValue","type":"gauge"}`,
+		// 	want: want{
+		// 		statusCode1: http.StatusOK,
+		// 		resp1:       ``,
+		// 		statusCode2: http.StatusOK,
+		// 		resp2:       `{"id":"RandomValue","type":"gauge","value":2.2}`,
+		// 	},
+		// },
+	}
+	loger := logrus.New()
+	loger.SetReportCaller(true)
+	loger.SetLevel(logrus.DebugLevel)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewEchoHandler(tt.fields.s)
+			handler.SetLoger(loger)
+
+			buf := bytes.NewBufferString(tt.body1)
+			request := httptest.NewRequest(tt.method, tt.request1, buf)
+			request.Header.Add("Content-Type", tt.content)
+			w := httptest.NewRecorder()
+			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
+			result := w.Result()
+
+			assert.Equal(t, tt.want.statusCode1, result.StatusCode)
+			body, err := ioutil.ReadAll(result.Body)
+			require.NoError(t, err)
+			err = result.Body.Close()
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want.resp1, string(body))
+
+			if result.StatusCode != http.StatusOK {
+				return
+			}
+
+			// match := rMetricURL.FindStringSubmatch(tt.request1)
+			// require.Equal(t, len(match), 4)
+			// assert.Contains(t, tt.fields.s.List()["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value1))
+			// fmt.Println(tt.name, tt.fields.s.List())
+			buf = bytes.NewBufferString(tt.body2)
+			request = httptest.NewRequest(tt.method, tt.request2, buf)
+			request.Header.Add("Content-Type", tt.content)
+			w = httptest.NewRecorder()
+			handler.Echo().ServeHTTP(w, request)
+
+			result = w.Result()
+
+			require.Equal(t, tt.want.statusCode2, result.StatusCode)
+			body, err = ioutil.ReadAll(result.Body)
+			require.NoError(t, err)
+			err = result.Body.Close()
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want.resp2, string(body))
+
+			if result.StatusCode == http.StatusOK {
+				// match := rMetricURL.FindStringSubmatch(tt.request1)
+				// assert.Equal(t, len(match), 4)
+				// assert.Contains(t, tt.fields.s.List()["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value2))
 				fmt.Println(tt.name, tt.fields.s.List())
 			}
 		})
