@@ -27,6 +27,23 @@ func (s Metrics) String() string {
 	switch s.MType {
 	case string(CounterType):
 		if s.Delta == nil {
+			return ""
+		}
+		return fmt.Sprintf(`%d`, *s.Delta)
+	case string(GaugeType):
+		if s.Value == nil {
+			return ""
+		}
+		return fmt.Sprintf(`%g`, *s.Value)
+	default:
+		return ""
+	}
+}
+
+func (s Metrics) StringFull() string {
+	switch s.MType {
+	case string(CounterType):
+		if s.Delta == nil {
 			return fmt.Sprintf(`%s - %s`, s.MType, s.ID)
 		}
 		return fmt.Sprintf(`%s - %s - %d`, s.MType, s.ID, *s.Delta)

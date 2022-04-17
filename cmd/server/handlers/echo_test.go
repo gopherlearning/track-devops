@@ -37,7 +37,7 @@ func TestEchoHandler_Get(t *testing.T) {
 			status:  http.StatusOK,
 			value:   map[string]interface{}{"counter": int64(123), "gauge": float64(0)},
 			target:  "192.0.2.1",
-			want:    "counter - PollCount - 123",
+			want:    "123",
 		},
 		{
 			name:    "Несуществующее значение",

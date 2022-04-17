@@ -152,7 +152,7 @@ func (s *Storage) List(targets ...string) map[string][]string {
 			if _, ok := res[target]; !ok {
 				res[target] = make([]string, 0)
 			}
-			res[target] = append(res[target], fmt.Sprint(s.metrics[target][m]))
+			res[target] = append(res[target], fmt.Sprint(s.metrics[target][m].StringFull()))
 		}
 		for k, v := range res {
 			sort.Strings(v)
