@@ -33,14 +33,23 @@ func TestStorage_List(t *testing.T) {
 		},
 		{
 			name: "Наполненный Storage",
-			fields: fields{v: map[metrics.MetricType]map[string]map[string]interface{}{
-				metrics.CounterType: {
-					"PollCount": map[string]interface{}{"1.1.1.1": int(3)},
+			fields: fields{
+				metrics: map[string][]metrics.Metrics{
+					"1.1.1.1": {
+						metrics.Metrics{ID: "PollCount", MType: string(metrics.CounterType), Delta: metrics.GetInt64Pointer(3)},
+					},
+					"1.1.1.2": {
+						metrics.Metrics{ID: "RandomValue", MType: string(metrics.GaugeType), Value: metrics.GetFloat64Pointer(11.22)},
+					},
 				},
-				metrics.GaugeType: {
-					"RandomValue": map[string]interface{}{"1.1.1.2": float64(11.22)},
-				},
-			},
+				// v: map[metrics.MetricType]map[string]map[string]interface{}{
+				// 	metrics.CounterType: {
+				// 		"PollCount": map[string]interface{}{"1.1.1.1": int(3)},
+				// 	},
+				// 	metrics.GaugeType: {
+				// 		"RandomValue": map[string]interface{}{"1.1.1.2": float64(11.22)},
+				// 	},
+				// },
 			},
 			args: args{
 				targets: nil,
@@ -55,7 +64,8 @@ func TestStorage_List(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Storage{
-				v: tt.fields.v,
+				// v: tt.fields.v,
+				metrics: tt.fields.metrics,
 			}
 			if got := s.List(tt.args.targets...); !reflect.DeepEqual(got, tt.want) {
 

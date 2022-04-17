@@ -146,7 +146,6 @@ func (s *Storage) UpdateMetric(target string, m metrics.Metrics) error {
 func (s *Storage) List(targets ...string) map[string][]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	res := make(map[string][]string)
 	for target := range s.metrics {
 		for m := range s.metrics[target] {
