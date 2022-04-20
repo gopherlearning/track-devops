@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newStorage(t *testing.T) *storage.Storage {
+	s, err := storage.NewStorage(false, nil)
+	require.NoError(t, err)
+	return s
+}
 func TestServer(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -25,7 +30,7 @@ func TestServer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewEchoServer(handlers.NewEchoHandler(storage.NewStorage()))
+			s := NewEchoServer(handlers.NewEchoHandler(newStorage(t)))
 			require.NotNil(t, s)
 			wg := sync.WaitGroup{}
 			wg.Add(2)

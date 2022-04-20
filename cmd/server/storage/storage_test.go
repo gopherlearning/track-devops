@@ -7,11 +7,17 @@ import (
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+func newStorage(t *testing.T) *Storage {
+	s, err := NewStorage(false, nil)
+	require.NoError(t, err)
+	return s
+}
 func TestStorage_List(t *testing.T) {
+
 	type fields struct {
-		v       map[metrics.MetricType]map[string]map[string]interface{}
 		metrics map[string][]metrics.Metrics
 	}
 	type args struct {
@@ -25,7 +31,7 @@ func TestStorage_List(t *testing.T) {
 	}{
 		{
 			name:   "Пустой Storage",
-			fields: fields{v: NewStorage().v, metrics: NewStorage().metrics},
+			fields: fields{metrics: newStorage(t).metrics},
 			args: args{
 				targets: nil,
 			},
@@ -79,7 +85,7 @@ func TestStorage_List(t *testing.T) {
 
 func TestStorage_ListProm(t *testing.T) {
 	type fields struct {
-		v       map[metrics.MetricType]map[string]map[string]interface{}
+		// v       map[metrics.MetricType]map[string]map[string]interface{}
 		metrics map[string][]metrics.Metrics
 	}
 	type args struct {
@@ -93,14 +99,14 @@ func TestStorage_ListProm(t *testing.T) {
 	}{
 		{
 			name:   "Не реализована",
-			fields: fields{v: NewStorage().v, metrics: NewStorage().metrics},
+			fields: fields{metrics: newStorage(t).metrics},
 			args:   args{targets: nil},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Storage{
-				v: tt.fields.v,
+				metrics: tt.fields.metrics,
 			}
 			assert.Panics(t, func() { s.ListProm(tt.args.targets...) })
 		})
@@ -129,7 +135,7 @@ func TestStorage_Update(t *testing.T) {
 					Delta: metrics.GetInt64Pointer(1),
 				},
 			},
-			storage: NewStorage(),
+			storage: newStorage(t),
 			err:     repositories.ErrWrongMetricType,
 		},
 		{
@@ -142,7 +148,7 @@ func TestStorage_Update(t *testing.T) {
 					Delta: metrics.GetInt64Pointer(1),
 				},
 			},
-			storage: NewStorage(),
+			storage: newStorage(t),
 			err:     repositories.ErrWrongTarget,
 		},
 		{
@@ -155,7 +161,7 @@ func TestStorage_Update(t *testing.T) {
 					Delta: metrics.GetInt64Pointer(1),
 				},
 			},
-			storage: NewStorage(),
+			storage: newStorage(t),
 			err:     repositories.ErrWrongMetricType,
 		},
 		{
@@ -168,7 +174,7 @@ func TestStorage_Update(t *testing.T) {
 					Delta: metrics.GetInt64Pointer(1),
 				},
 			},
-			storage: NewStorage(),
+			storage: newStorage(t),
 			err:     repositories.ErrWrongMetricID,
 		},
 		{
@@ -180,7 +186,7 @@ func TestStorage_Update(t *testing.T) {
 					ID:    "1",
 				},
 			},
-			storage: NewStorage(),
+			storage: newStorage(t),
 			err:     repositories.ErrWrongMetricValue,
 		},
 		// {
@@ -222,7 +228,7 @@ func TestStorage_Update(t *testing.T) {
 					Value: metrics.GetFloat64Pointer(123.456),
 				},
 			},
-			storage: NewStorage(),
+			storage: newStorage(t),
 			err:     nil,
 		},
 		// {
@@ -238,7 +244,7 @@ func TestStorage_Update(t *testing.T) {
 		// 		name:   "BlaBla",
 		// 		value:  "none",
 		// 	},
-		// 	storage: NewStorage(),
+		// 	storage: NewStorage(false, nil),
 		// 	// не тестируется, так как отсекается регулярным выражением
 		// 	err: repositories.ErrWrongMetricValue,
 		// },
@@ -252,7 +258,7 @@ func TestStorage_Update(t *testing.T) {
 					Delta: metrics.GetInt64Pointer(123),
 				},
 			},
-			storage: NewStorage(),
+			storage: newStorage(t),
 			err:     nil,
 		},
 		// {
@@ -268,7 +274,7 @@ func TestStorage_Update(t *testing.T) {
 		// 		name:   "BlaBla",
 		// 		value:  "123.123",
 		// 	},
-		// 	storage: NewStorage(),
+		// 	storage: NewStorage(false, nil),
 		// 	err:     repositories.ErrWrongMetricValue,
 		// },
 		{

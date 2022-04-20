@@ -50,7 +50,7 @@ func TestEchoHandler_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := storage.NewStorage()
+			s := newStorage(t)
 			if len(tt.want) != 0 {
 				m := strings.Split(tt.request, "/")
 				// require.NoError(t, s.Update(tt.target, m[2], m[3], tt.value))
@@ -95,7 +95,7 @@ func TestEchoHandler_Update(t *testing.T) {
 	}{
 		{
 			name:   "TestIteration2/TestCounterHandlers/invalid_value",
-			fields: fields{s: storage.NewStorage()},
+			fields: fields{s: newStorage(t)},
 			// content:  "text/plain",
 			method:   http.MethodPost,
 			request1: "/update/counter/testCounter/none",
@@ -109,7 +109,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		},
 		{
 			name:   "TestIteration2/TestCounterHandlers/update",
-			fields: fields{s: storage.NewStorage()},
+			fields: fields{s: newStorage(t)},
 			// content:  "text/plain",
 			method:   http.MethodPost,
 			request1: "/update/counter/testCounter/100",
@@ -123,7 +123,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		},
 		{
 			name:   "TestIteration2/TestCounterHandlers/without_id",
-			fields: fields{s: storage.NewStorage()},
+			fields: fields{s: newStorage(t)},
 			// content:  "text/plain",
 			method:   http.MethodPost,
 			request1: "/update/counter/",
@@ -137,7 +137,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		},
 		{
 			name:   "TestIteration2/TestGaugeHandlers/update",
-			fields: fields{s: storage.NewStorage()},
+			fields: fields{s: newStorage(t)},
 			// content:  "text/plain",
 			method:   http.MethodPost,
 			request1: "/update/gauge/testGauge/100",
@@ -151,7 +151,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		},
 		{
 			name:   "TestIteration2/TestGaugeHandlers/without_id",
-			fields: fields{s: storage.NewStorage()},
+			fields: fields{s: newStorage(t)},
 			// content:  "text/plain",
 			method:   http.MethodPost,
 			request1: "/update/gauge/",
@@ -165,7 +165,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		},
 		{
 			name:   "TestIteration2/TestGaugeHandlers/invalid_value",
-			fields: fields{s: storage.NewStorage()},
+			fields: fields{s: newStorage(t)},
 			// content:  "text/plain",
 			method:   http.MethodPost,
 			request1: "/update/gauge/testGauge/none",
@@ -179,7 +179,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		},
 		{
 			name:   "TestIteration2/TestUnknownHandlers/update_invalid_type",
-			fields: fields{s: storage.NewStorage()},
+			fields: fields{s: newStorage(t)},
 			// content:  "text/plain",
 			method:   http.MethodPost,
 			request1: "/update/unknown/testCounter/100",
@@ -193,7 +193,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		},
 		{
 			name:   "TestIteration2/TestUnknownHandlers/update_invalid_method",
-			fields: fields{s: storage.NewStorage()},
+			fields: fields{s: newStorage(t)},
 			// content:  "text/plain",
 			method:   http.MethodGet,
 			request1: "/updater/counter/testCounter/100",
@@ -207,7 +207,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		},
 		// {
 		// 	name:     "Неправильный Content-Type",
-		// 	fields:   fields{s: storage.NewStorage()},
+		// 	fields:   fields{s: newStorage(t)},
 		// 	content:  "",
 		// 	method:   http.MethodPost,
 		// 	request1: "/update/counter/PollCount/2",
@@ -221,7 +221,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		// },
 		{
 			name:     "Неправильный http метод",
-			fields:   fields{s: storage.NewStorage()},
+			fields:   fields{s: newStorage(t)},
 			method:   http.MethodGet,
 			request1: "/update/counter/PollCount/2",
 			request2: "/update/counter/PollCount/3",
@@ -234,7 +234,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		},
 		{
 			name:     "Сохранение неправильного counter",
-			fields:   fields{s: storage.NewStorage()},
+			fields:   fields{s: newStorage(t)},
 			content:  "text/plain",
 			method:   http.MethodPost,
 			request1: "/update/counter/PollCount/2.2",
@@ -298,7 +298,11 @@ func TestEchoHandler_Update(t *testing.T) {
 		})
 	}
 }
-
+func newStorage(t *testing.T) *storage.Storage {
+	s, err := storage.NewStorage(false, nil)
+	require.NoError(t, err)
+	return s
+}
 func TestEchoHandlerJSON(t *testing.T) {
 	type fields struct {
 		s repositories.Repository
@@ -322,7 +326,7 @@ func TestEchoHandlerJSON(t *testing.T) {
 	}{
 		{
 			name:     "TestIteration2/TestCounterHandlersJSON",
-			fields:   fields{s: storage.NewStorage()},
+			fields:   fields{s: newStorage(t)},
 			content:  "application/json",
 			method:   http.MethodPost,
 			request1: "/update/",
@@ -338,7 +342,7 @@ func TestEchoHandlerJSON(t *testing.T) {
 		},
 		{
 			name:     "TestIteration2/TestGaugeHandlersJSON",
-			fields:   fields{s: storage.NewStorage()},
+			fields:   fields{s: newStorage(t)},
 			content:  "application/json",
 			method:   http.MethodPost,
 			request1: "/update/",
@@ -363,7 +367,7 @@ func TestEchoHandlerJSON(t *testing.T) {
 		// 	// 		},
 		// 	// 	},
 		// 	// }},
-		// 	fields:   fields{s: storage.NewStorage()},
+		// 	fields:   fields{s: storage.NewStorage(false, nil)},
 		// 	content:  "application/json",
 		// 	method:   http.MethodPost,
 		// 	request1: "/update/",
