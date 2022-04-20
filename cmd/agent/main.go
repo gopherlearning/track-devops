@@ -8,17 +8,24 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/kong"
 	"github.com/gopherlearning/track-devops/internal/metrics"
+	"github.com/sirupsen/logrus"
 )
 
-const (
-	pollInterval   = 2 * time.Second
-	reportInterval = 10 * time.Second
-	serverAddr     = "127.0.0.1"
-	serverPort     = "8080"
-)
+var args struct {
+	// Run struct {
+	Config         string        `help:"Config"`
+	ServerAddr     string        `help:"Server address" default:"127.0.0.1"`
+	ServerPort     string        `help:"Server port" default:"8080"`
+	PollInterval   time.Duration `help:"Poll interval" default:"2s"`
+	ReportInterval time.Duration `help:"Report interval" default:"10s"`
+	Format         string        `help:"Report format"`
+}
 
 func main() {
+	kong.Parse(&args)
+	logrus.Info(args)
 	httpClient := http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        10,
@@ -26,8 +33,8 @@ func main() {
 			MaxIdleConnsPerHost: 10,
 		},
 	}
-	tickerPoll := time.NewTicker(pollInterval)
-	tickerReport := time.NewTicker(reportInterval)
+	tickerPoll := time.NewTicker(args.PollInterval)
+	tickerReport := time.NewTicker(args.ReportInterval)
 	metricStore := metrics.NewStore()
 	metricStore.AddCustom(new(metrics.PollCount), new(metrics.RandomValue))
 	terminate := make(chan os.Signal, 1)
@@ -43,8 +50,8 @@ func main() {
 				fmt.Println(fmt.Errorf("metric store Scrape() failed: %v", err))
 			}
 		case <-tickerReport.C:
-			baseURL := fmt.Sprintf("http://%s:%s", serverAddr, serverPort)
-			err := metricStore.Save(&httpClient, &baseURL)
+			baseURL := fmt.Sprintf("http://%s:%s", args.ServerAddr, args.ServerPort)
+			err := metricStore.Save(&httpClient, &baseURL, args.Format == "json")
 			if err != nil {
 				fmt.Println(fmt.Errorf("metric store Save() failed: %v", err))
 			}

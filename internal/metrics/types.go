@@ -12,6 +12,7 @@ type Metric interface {
 	Type() string
 	String() string
 	Scrape() error
+	Metrics() Metrics
 }
 
 type Counter interface {
@@ -48,9 +49,7 @@ var metricDesc = map[int]string{
 }
 
 // PollCount Счётчик, увеличивающийся на 1 при каждом обновлении метрики из пакета runtime
-type PollCount struct {
-	v int64
-}
+type PollCount int64
 
 var _ Counter = new(PollCount)
 
@@ -64,22 +63,26 @@ func (m PollCount) Type() string {
 	return "counter"
 }
 func (m PollCount) String() string {
-	return fmt.Sprintf("%d", m.v)
+	return fmt.Sprintf("%d", m)
 }
 func (m *PollCount) Get() int64 {
-	return m.v
+	return int64(*m)
 }
 func (m *PollCount) Set(i int64) {
-	m.v = i
+	*m = PollCount(i)
+	// m.v = i
 }
 func (m *PollCount) Scrape() error {
+	a := *m + 1
+	*m = a
 	return nil
+}
+func (m *PollCount) Metrics() Metrics {
+	return Metrics{ID: m.Name(), MType: m.Type(), Delta: GetInt64Pointer(int64(*m))}
 }
 
 // RandomValue Обновляемое рандомное значение
-type RandomValue struct {
-	v float64
-}
+type RandomValue float64
 
 var _ Gauge = new(RandomValue)
 
@@ -93,16 +96,19 @@ func (m RandomValue) Type() string {
 	return "gauge"
 }
 func (m RandomValue) String() string {
-	return fmt.Sprintf("%f", m.v)
+	return fmt.Sprintf("%f", m)
 }
 func (m *RandomValue) Get() float64 {
-	return m.v
+	return float64(*m)
 }
 func (m *RandomValue) Set(i float64) {
-	m.v = i
+	*m = RandomValue(i)
 }
 func (m *RandomValue) Scrape() error {
 	rand.Seed(time.Now().Unix())
-	m.v = rand.Float64()
+	*m = RandomValue(rand.Float64())
 	return nil
+}
+func (m *RandomValue) Metrics() Metrics {
+	return Metrics{ID: m.Name(), MType: m.Type(), Value: GetFloat64Pointer(float64(*m))}
 }

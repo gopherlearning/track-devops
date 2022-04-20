@@ -10,6 +10,7 @@ import (
 	"github.com/gopherlearning/track-devops/cmd/server/handlers"
 	"github.com/gopherlearning/track-devops/cmd/server/storage"
 	"github.com/gopherlearning/track-devops/cmd/server/web"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -20,6 +21,7 @@ const (
 func main() {
 	store := storage.NewStorage()
 	h := handlers.NewEchoHandler(store)
+	h.SetLoger(logrus.StandardLogger())
 	s := web.NewEchoServer(h)
 
 	terminate := make(chan os.Signal, 1)

@@ -1,7 +1,9 @@
 package metrics
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,6 +12,8 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Store struct {
@@ -78,6 +82,54 @@ func (s *Store) All() []string {
 	sort.Strings(res)
 	return append(res, s.MemStats()...)
 }
+func (s *Store) AllMetrics() []Metrics {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	res := make([]Metrics, 0)
+	keys := make([]string, 0)
+	for k := range s.custom {
+		keys = append(keys, k)
+	}
+	for k := range runtimeMetrics {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	r := reflect.ValueOf(s.memstat)
+	for _, k := range keys {
+		if _, ok := s.custom[k]; ok {
+			res = append(res, s.custom[k].Metrics())
+			continue
+		}
+		f := r.Elem().FieldByName(k)
+		if !f.IsValid() {
+			fmt.Println("Bad Name - ", k)
+			return nil
+		}
+		m := Metrics{ID: k, MType: runtimeMetrics[k]}
+		switch runtimeMetrics[k] {
+		case string(CounterType):
+			m.Delta = GetInt64Pointer(f.Int())
+		case string(GaugeType):
+			var a float64
+			switch f.Type().String() {
+			case "uint64", "uint32":
+				a = float64(f.Uint())
+			default:
+				a = f.Float()
+			}
+			m.Value = &a
+		}
+		res = append(res, m)
+	}
+	// for _, k := range keys {
+
+	// }
+	// for k, v := range runtimeMetrics {
+
+	// }
+	return res
+}
+
 func (s *Store) Custom() map[string]Metric {
 	s.mu.Lock()
 	result := make(map[string]Metric, len(s.custom))
@@ -87,21 +139,73 @@ func (s *Store) Custom() map[string]Metric {
 	s.mu.Unlock()
 	return result
 }
-func (s *Store) Save(client *http.Client, baseURL *string) error {
-	res := s.All()
-	fmt.Println(res)
+func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool) error {
 	if client != nil && baseURL != nil {
+		if !isJSON {
+			res := s.All()
+			fmt.Println(res)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			errC := make(chan error, len(res))
+			for i := 0; i < len(res); i++ {
+				go func(ctx context.Context, c *http.Client, url string) {
+					req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+					if err != nil {
+						errC <- err
+						return
+					}
+					req.Header.Set("Content-Type", "text/plain")
+					resp, err := c.Do(req)
+					if err != nil {
+						errC <- err
+						return
+					}
+					defer resp.Body.Close()
+
+					if resp.StatusCode != http.StatusOK {
+						body, err := ioutil.ReadAll(resp.Body)
+						if err != nil {
+							errC <- err
+							return
+						}
+						errC <- nil
+						fmt.Println("save failed: ", string(body))
+						return
+					}
+					_, err = io.Copy(io.Discard, resp.Body)
+					if err != nil {
+						errC <- err
+						return
+					}
+					errC <- nil
+				}(ctx, client, *baseURL+res[i])
+			}
+			for i := 0; i < len(res); i++ {
+				if err := <-errC; err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		res := s.AllMetrics()
+		// fmt.Println(res)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error, len(res))
 		for i := 0; i < len(res); i++ {
-			go func(ctx context.Context, c *http.Client, url string) {
-				req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+			go func(ctx context.Context, c *http.Client, url string, metric Metrics) {
+				b, err := json.Marshal(metric)
 				if err != nil {
 					errC <- err
 					return
 				}
-				req.Header.Set("Content-Type", "text/plain")
+				buf := bytes.NewBuffer(b)
+				req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
+				if err != nil {
+					errC <- err
+					return
+				}
+				req.Header.Set("Content-Type", "application/json")
 				resp, err := c.Do(req)
 				if err != nil {
 					errC <- err
@@ -125,13 +229,14 @@ func (s *Store) Save(client *http.Client, baseURL *string) error {
 					return
 				}
 				errC <- nil
-			}(ctx, client, *baseURL+res[i])
+			}(ctx, client, *baseURL+"/update/", res[i])
 		}
 		for i := 0; i < len(res); i++ {
 			if err := <-errC; err != nil {
 				return err
 			}
 		}
+		return nil
 	}
 	return nil
 }
@@ -147,15 +252,13 @@ func (s *Store) Scrape() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	runtime.ReadMemStats(s.memstat)
-	if _, ok := s.custom[metricNames[tPollCount]]; ok {
-		i := s.custom[metricNames[tPollCount]].(*PollCount).Get() + 1
-		s.custom[metricNames[tPollCount]].(*PollCount).Set(i)
-	}
+
 	var errC = make(chan error, len(s.custom))
 	for k := range s.custom {
 		go func(n string) {
 			m := s.custom[n]
 			err := m.Scrape()
+			logrus.Info(m)
 			if err != nil {
 				errC <- err
 				return

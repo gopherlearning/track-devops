@@ -120,7 +120,7 @@ func (h *EchoHandler) UpdateMetricJSON(c echo.Context) error {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 
-	h.Loger().Infof("%+v", m)
+	// h.Loger().Infof("%+v"q, &m)
 	if err := h.s.UpdateMetric(c.RealIP(), m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
