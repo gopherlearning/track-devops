@@ -61,13 +61,17 @@ func main() {
 	go func() {
 		err := s.Start(args.ServerAddr)
 		if err != nil {
-			fmt.Println(222, err)
+			logrus.Error(err)
 		}
 	}()
 	sig := <-terminate
 	err = s.Stop()
 	if err != nil {
-		fmt.Println(222, err)
+		logrus.Error(err)
 	}
-	fmt.Printf("Server stoped by signal \"%v\"\n", sig)
+	err = store.Save()
+	if err != nil {
+		logrus.Error(err)
+	}
+	logrus.Info("Server stoped by signal \"%v\"\n", sig)
 }
