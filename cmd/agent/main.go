@@ -8,22 +8,27 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/caarlos0/env/v6"
+
 	"github.com/alecthomas/kong"
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/sirupsen/logrus"
 )
 
 var args struct {
-	// Run struct {
 	Config         string        `help:"Config"`
-	ServerAddr     string        `help:"Server address" default:"127.0.0.1"`
-	ServerPort     string        `help:"Server port" default:"8080"`
-	PollInterval   time.Duration `help:"Poll interval" default:"2s"`
-	ReportInterval time.Duration `help:"Report interval" default:"10s"`
-	Format         string        `help:"Report format"`
+	ServerAddr     string        `help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
+	PollInterval   time.Duration `help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
+	ReportInterval time.Duration `help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
+	Format         string        `help:"Report format" env:"FORMAT"`
 }
 
 func main() {
+	err := env.Parse(&args)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
 	kong.Parse(&args)
 	logrus.Info(args)
 	httpClient := http.Client{
@@ -50,7 +55,7 @@ func main() {
 				fmt.Println(fmt.Errorf("metric store Scrape() failed: %v", err))
 			}
 		case <-tickerReport.C:
-			baseURL := fmt.Sprintf("http://%s:%s", args.ServerAddr, args.ServerPort)
+			baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
 			err := metricStore.Save(&httpClient, &baseURL, args.Format == "json")
 			if err != nil {
 				fmt.Println(fmt.Errorf("metric store Save() failed: %v", err))
