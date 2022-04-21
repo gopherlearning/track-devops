@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -28,13 +29,15 @@ func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string)
 		s.storeFile = storeFile[0]
 	}
 	if restore && storeFile != nil {
-		data, err := ioutil.ReadFile(s.storeFile)
-		if err != nil {
-			return nil, err
-		}
-		err = json.Unmarshal(data, &s.metrics)
-		if err != nil {
-			return nil, err
+		if _, err := os.Stat(s.storeFile); err == nil {
+			data, err := ioutil.ReadFile(s.storeFile)
+			if err != nil {
+				return nil, err
+			}
+			err = json.Unmarshal(data, &s.metrics)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	if storeInterval != nil {
