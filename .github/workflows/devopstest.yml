@@ -214,8 +214,8 @@ jobs:
             -binary-path=cmd/server/server \
             -server-port=$SERVER_PORT \
             -database-dsn='postgres://postgres:postgres@postgres:5432/praktikum?sslmode=disable' \
-            -file-storage-path=$TEMP_FILE || echo 1111111
-          cat log111
+            -file-storage-path=$TEMP_FILE -test.trace /tmp/log111 || cat /tmp/log111
+          cat /tmp/log111
           echo 123
 
 # VII. Задание к седьмому инкременту.
