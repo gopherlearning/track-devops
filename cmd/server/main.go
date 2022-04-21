@@ -30,6 +30,7 @@ func main() {
 		logrus.Fatal(err)
 	}
 	kong.Parse(&args)
+	logrus.Warn(os.Environ())
 	logrus.Info(args)
 	store, err := storage.NewStorage(args.Restore, &args.StoreInterval, args.StoreFile)
 	if err != nil {
