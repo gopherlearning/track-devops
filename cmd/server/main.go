@@ -7,11 +7,13 @@ import (
 	"syscall"
 	"time"
 
+	lokihook "github.com/akkuman/logrus-loki-hook"
 	"github.com/alecthomas/kong"
 	"github.com/caarlos0/env/v6"
 	"github.com/gopherlearning/track-devops/cmd/server/handlers"
 	"github.com/gopherlearning/track-devops/cmd/server/storage"
 	"github.com/gopherlearning/track-devops/cmd/server/web"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -20,6 +22,25 @@ var args struct {
 	StoreInterval time.Duration `help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s"`
 	StoreFile     string        `help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json"`
 	Restore       bool          `help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true"`
+}
+
+func init() {
+	lokiHookConfig := &lokihook.Config{
+		// the loki api url
+		URL: "https://logsremoteloki:efnd9DG510YnZQUjMlgMYVIN@loki.duduh.ru/api/prom/push",
+		// (optional, default: severity) the label's key to distinguish log's level, it will be added to Labels map
+		LevelName: "severity",
+		// the labels which will be sent to loki, contains the {levelname: level}
+		Labels: map[string]string{
+			"app": "track-devops",
+		},
+	}
+	hook, err := lokihook.NewHook(lokiHookConfig)
+	if err != nil {
+		logrus.Error(err)
+	} else {
+		logrus.AddHook(hook)
+	}
 }
 
 func main() {
