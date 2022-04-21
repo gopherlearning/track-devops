@@ -124,12 +124,12 @@ jobs:
 # Сервер должен штатно завершаться по сигналам: syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT
 # Покройте код агента и сервера юнит тестами
 
-      # - name: "Code increment #2"
-      #   if: always()
-      #   run: |
-      #     devopstest -test.v -test.run=^TestIteration2[b]*$ \
-      #       -source-path=. \
-      #       -binary-path=cmd/server/server
+      - name: "Code increment #2"
+        if: always()
+        run: |
+          devopstest -test.v -test.run=^TestIteration2[b]*$ \
+            -source-path=. \
+            -binary-path=cmd/server/server
 
 # III. Задание к третьему инкременту.
 # Переписать код с использованием одного из распространенных web-фреймворков. Например: github.com/go-chi/chi
@@ -137,12 +137,12 @@ jobs:
 # При попытке запроса неизвестной серверу метрики, сервер должен возвращать http.StatusNotFound
 # По запросу GET http://<АДРЕС_СЕРВЕРА>/ сервер должен отдавать html-страничку, со списком имен и значений всех известных ему на текущий момент метрик.
 
-      # - name: "Code increment #3"
-      #   if: always()
-      #   run: |
-      #     devopstest -test.v -test.run=^TestIteration3[b]*$ \
-      #       -source-path=. \
-      #       -binary-path=cmd/server/server
+      - name: "Code increment #3"
+        if: always()
+        run: |
+          devopstest -test.v -test.run=^TestIteration3[b]*$ \
+            -source-path=. \
+            -binary-path=cmd/server/server
 
 # IV. Задание к четвертому инкременту.
 # Дополнить(!) API сервера, которое позволяет принимать метрики в формате JSON.
@@ -162,13 +162,13 @@ jobs:
 # Перевести Агента на новое API
 # Тесты проверяют, что агент экспортирует и обновляет метрики на сервере, описанные в первом инкременте.
 
-      # - name: "Code increment #4"
-      #   if: always()
-      #   run: |
-      #     devopstest -test.v -test.run=^TestIteration4$ \
-      #       -source-path=. \
-      #       -binary-path=cmd/server/server \
-      #       -agent-binary-path=cmd/agent/agent
+      - name: "Code increment #4"
+        if: always()
+        run: |
+          devopstest -test.v -test.run=^TestIteration4$ \
+            -source-path=. \
+            -binary-path=cmd/server/server \
+            -agent-binary-path=cmd/agent/agent
 
 # V. Задание к пятому инкременту.
 # Доработать агента, что бы он мог изменять свои параметры запуска по умолчанию, через переменные окружения:
@@ -179,16 +179,16 @@ jobs:
 # Доработать сервер, что бы он мог изменять свои параметры запуска по умолчанию, через переменные окружения:
 #   ADDRESS (по умолчанию: "127.0.0.1:8080" или "localhost:8080")
 
-      # - name: "Code increment #5"
-      #   if: always()
-      #   run: |
-      #     SERVER_PORT=$(random unused-port)
-      #     ADDRESS="localhost:${SERVER_PORT}"
-      #     devopstest -test.v -test.run=^TestIteration5$ \
-      #       -source-path=. \
-      #       -agent-binary-path=cmd/agent/agent \
-      #       -binary-path=cmd/server/server \
-      #       -server-port=$SERVER_PORT
+      - name: "Code increment #5"
+        if: always()
+        run: |
+          SERVER_PORT=$(random unused-port)
+          ADDRESS="localhost:${SERVER_PORT}"
+          devopstest -test.v -test.run=^TestIteration5$ \
+            -source-path=. \
+            -agent-binary-path=cmd/agent/agent \
+            -binary-path=cmd/server/server \
+            -server-port=$SERVER_PORT
 
 # VI. Задание к шестому инкременту.
 # Доработать сервер, что бы он с заданной периодичностью сохранял текущие значения метрик на диск в указанный файл.
@@ -205,18 +205,13 @@ jobs:
           SERVER_PORT=$(random unused-port)
           ADDRESS="localhost:${SERVER_PORT}"
           TEMP_FILE=$(random tempfile)
-          devopstest -help
-          ./cmd/server/server --help
-          env
           devopstest -test.v -test.run=^TestIteration6$ \
             -source-path=. \
             -agent-binary-path=cmd/agent/agent \
             -binary-path=cmd/server/server \
             -server-port=$SERVER_PORT \
             -database-dsn='postgres://postgres:postgres@postgres:5432/praktikum?sslmode=disable' \
-            -file-storage-path=$TEMP_FILE -test.trace /tmp/log111 || cat /tmp/log111
-          cat /tmp/log111
-          echo 123
+            -file-storage-path=$TEMP_FILE
 
 # VII. Задание к седьмому инкременту.
 # Доработать код, что бы он умел принимать аргументы с использованием флагов.
