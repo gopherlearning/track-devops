@@ -72,5 +72,5 @@ func main() {
 	if err != nil {
 		logrus.Error(err)
 	}
-	logrus.Info("Server stoped by signal \"%v\"\n", sig)
+	logrus.Infof("Server stoped by signal \"%v\"\n", sig)
 }

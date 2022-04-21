@@ -85,7 +85,7 @@ func (s *Storage) Save() error {
 func (s *Storage) Metrics() map[string][]metrics.Metrics {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	res := make(map[string][]metrics.Metrics, 0)
+	res := make(map[string][]metrics.Metrics)
 	for target := range s.metrics {
 		for k := range s.metrics[target] {
 			if _, ok := res[target]; !ok {
