@@ -213,7 +213,7 @@ jobs:
             -binary-path=cmd/server/server \
             -server-port=$SERVER_PORT \
             -database-dsn='postgres://postgres:postgres@postgres:5432/praktikum?sslmode=disable' \
-            -file-storage-path=$TEMP_FILE > log111 2>&1 
+            -file-storage-path=$TEMP_FILE
           cat log111
           echo 123
 
