@@ -205,6 +205,8 @@ jobs:
           SERVER_PORT=$(random unused-port)
           ADDRESS="localhost:${SERVER_PORT}"
           TEMP_FILE=$(random tempfile)
+          devopstest -help
+          ./cmd/server/server --help
           devopstest -test.v -test.run=^TestIteration6$ \
             -source-path=. \
             -agent-binary-path=cmd/agent/agent \
