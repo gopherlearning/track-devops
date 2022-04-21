@@ -16,12 +16,10 @@ import (
 )
 
 var args struct {
-	Config        string        `help:"Config"`
 	ServerAddr    string        `help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
 	StoreInterval time.Duration `help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s"`
 	StoreFile     string        `help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json"`
 	Restore       bool          `help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true"`
-	Format        string        `help:"Report format" env:"FORMAT"`
 }
 
 func main() {
