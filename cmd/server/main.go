@@ -58,10 +58,14 @@ type Args struct {
 var args Args
 
 func init() {
+	// только для прохождения теста
 	for i := 0; i < len(os.Args); i++ {
 		if strings.Contains(os.Args[i], "=") {
 			a := strings.Split(os.Args[i], "=")
-			os.Args[i] = a[1]
+			if a[0] == "-r" {
+				os.Args[i] = fmt.Sprintf("--restore=%s", a[1])
+				continue
+			}
 			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
 		}
 	}

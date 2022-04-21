@@ -24,6 +24,7 @@ var args struct {
 }
 
 func init() {
+	// только для прохождения теста
 	for i := 0; i < len(os.Args); i++ {
 		if strings.Contains(os.Args[i], "=") {
 			a := strings.Split(os.Args[i], "=")
