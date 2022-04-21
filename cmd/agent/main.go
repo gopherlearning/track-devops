@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,21 +17,29 @@ import (
 )
 
 var args struct {
-	Config         string        `help:"Config"`
-	ServerAddr     string        `help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
-	PollInterval   time.Duration `help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
-	ReportInterval time.Duration `help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
-	Format         string        `help:"Report format" env:"FORMAT"`
+	ServerAddr     string        `short:"a" help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
+	PollInterval   time.Duration `short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
+	ReportInterval time.Duration `short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
+	Format         string        `short:"f" help:"Report format" env:"FORMAT"`
+}
+
+func init() {
+	for i := 0; i < len(os.Args); i++ {
+		if strings.Contains(os.Args[i], "=") {
+			a := strings.Split(os.Args[i], "=")
+			os.Args[i] = a[1]
+			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
+		}
+	}
 }
 
 func main() {
+	kong.Parse(&args)
 	err := env.Parse(&args)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-
-	kong.Parse(&args)
-	logrus.Info(args)
+	logrus.Infof("%+v", args)
 	httpClient := http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        10,

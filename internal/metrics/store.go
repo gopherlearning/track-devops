@@ -12,8 +12,6 @@ import (
 	"runtime"
 	"sort"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 type Store struct {
@@ -258,7 +256,6 @@ func (s *Store) Scrape() error {
 		go func(n string) {
 			m := s.custom[n]
 			err := m.Scrape()
-			logrus.Info(m)
 			if err != nil {
 				errC <- err
 				return
