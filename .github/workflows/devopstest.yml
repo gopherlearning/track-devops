@@ -207,13 +207,14 @@ jobs:
           TEMP_FILE=$(random tempfile)
           devopstest -help
           ./cmd/server/server --help
+          env
           devopstest -test.v -test.run=^TestIteration6$ \
             -source-path=. \
             -agent-binary-path=cmd/agent/agent \
             -binary-path=cmd/server/server \
             -server-port=$SERVER_PORT \
             -database-dsn='postgres://postgres:postgres@postgres:5432/praktikum?sslmode=disable' \
-            -file-storage-path=$TEMP_FILE
+            -file-storage-path=$TEMP_FILE || echo 1111111
           cat log111
           echo 123
 
