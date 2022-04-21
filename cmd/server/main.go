@@ -8,7 +8,6 @@ import (
 	"time"
 
 	lokihook "github.com/akkuman/logrus-loki-hook"
-	"github.com/alecthomas/kong"
 	"github.com/caarlos0/env/v6"
 	"github.com/gopherlearning/track-devops/cmd/server/handlers"
 	"github.com/gopherlearning/track-devops/cmd/server/storage"
@@ -18,10 +17,10 @@ import (
 )
 
 var args struct {
-	ServerAddr    string        `help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
-	StoreInterval time.Duration `help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s"`
-	StoreFile     string        `help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json"`
-	Restore       bool          `help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true"`
+	ServerAddr    string        `help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080" envDefault:"127.0.0.1:8080"`
+	StoreInterval time.Duration `help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s" envDefault:"300s"`
+	StoreFile     string        `help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json" envDefault:"/tmp/devops-metrics-db.json"`
+	Restore       bool          `help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true" envDefault:"true"`
 }
 
 func init() {
@@ -48,7 +47,7 @@ func main() {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	kong.Parse(&args)
+	// kong.Parse(&args)
 	logrus.Warn(os.Environ())
 	logrus.Info(args)
 	store, err := storage.NewStorage(args.Restore, &args.StoreInterval, args.StoreFile)
