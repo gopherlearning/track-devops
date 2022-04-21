@@ -27,6 +27,9 @@ func NewEchoHandler(s repositories.Repository) Handler {
 	// e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	h := &EchoHandler{s: s, e: e}
+	h.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+		Level: 5,
+	}))
 	h.e.POST("/update/", h.UpdateMetricJSON)
 	h.e.POST("/value/", h.GetMetricJSON)
 	h.e.POST("/update/:type/:name/:value", h.UpdateMetric)
