@@ -183,7 +183,7 @@ jobs:
         if: always()
         run: |
           SERVER_PORT=$(random unused-port)
-          ADDRESS="localhost:${SERVER_PORT}"
+          export ADDRESS="localhost:${SERVER_PORT}"
           devopstest -test.v -test.run=^TestIteration5$ \
             -source-path=. \
             -agent-binary-path=cmd/agent/agent \
@@ -203,7 +203,7 @@ jobs:
         if: always()
         run: |
           SERVER_PORT=$(random unused-port)
-          ADDRESS="localhost:${SERVER_PORT}"
+          export ADDRESS="localhost:${SERVER_PORT}"
           TEMP_FILE=$(random tempfile)
           devopstest -test.v -test.run=^TestIteration6$ \
             -source-path=. \

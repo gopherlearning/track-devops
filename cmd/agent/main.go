@@ -5,20 +5,42 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/caarlos0/env/v6"
+
+	"github.com/alecthomas/kong"
 	"github.com/gopherlearning/track-devops/internal/metrics"
+	"github.com/sirupsen/logrus"
 )
 
-const (
-	pollInterval   = 2 * time.Second
-	reportInterval = 10 * time.Second
-	serverAddr     = "127.0.0.1"
-	serverPort     = "8080"
-)
+var args struct {
+	ServerAddr     string        `short:"a" help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
+	PollInterval   time.Duration `short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
+	ReportInterval time.Duration `short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
+	Format         string        `short:"f" help:"Report format" env:"FORMAT"`
+}
+
+func init() {
+	// только для прохождения теста
+	for i := 0; i < len(os.Args); i++ {
+		if strings.Contains(os.Args[i], "=") {
+			a := strings.Split(os.Args[i], "=")
+			os.Args[i] = a[1]
+			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
+		}
+	}
+}
 
 func main() {
+	kong.Parse(&args)
+	err := env.Parse(&args)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.Infof("%+v", args)
 	httpClient := http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        10,
@@ -26,8 +48,8 @@ func main() {
 			MaxIdleConnsPerHost: 10,
 		},
 	}
-	tickerPoll := time.NewTicker(pollInterval)
-	tickerReport := time.NewTicker(reportInterval)
+	tickerPoll := time.NewTicker(args.PollInterval)
+	tickerReport := time.NewTicker(args.ReportInterval)
 	metricStore := metrics.NewStore()
 	metricStore.AddCustom(new(metrics.PollCount), new(metrics.RandomValue))
 	terminate := make(chan os.Signal, 1)
@@ -43,8 +65,8 @@ func main() {
 				fmt.Println(fmt.Errorf("metric store Scrape() failed: %v", err))
 			}
 		case <-tickerReport.C:
-			baseURL := fmt.Sprintf("http://%s:%s", serverAddr, serverPort)
-			err := metricStore.Save(&httpClient, &baseURL)
+			baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
+			err := metricStore.Save(&httpClient, &baseURL, args.Format == "json")
 			if err != nil {
 				fmt.Println(fmt.Errorf("metric store Save() failed: %v", err))
 			}
