@@ -19,14 +19,15 @@ type EchoHandler struct {
 	s     repositories.Repository
 	e     *echo.Echo
 	loger logrus.FieldLogger
+	key   []byte
 }
 
 // NewHandler создаёт новый экземпляр обработчика запросов, привязанный к хранилищу
-func NewEchoHandler(s repositories.Repository) Handler {
+func NewEchoHandler(s repositories.Repository, key []byte) Handler {
 	e := echo.New()
 	// e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	h := &EchoHandler{s: s, e: e}
+	h := &EchoHandler{s: s, e: e, key: key}
 	h.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
@@ -122,6 +123,13 @@ func (h *EchoHandler) UpdateMetricJSON(c echo.Context) error {
 		h.Loger().Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
+	if len(h.key) != 0 {
+		recived := m.Hash
+		err = m.Sign(h.key)
+		if err != nil || recived != m.Hash {
+			return c.HTML(http.StatusBadRequest, "подпись не соответствует ожиданиям")
+		}
+	}
 
 	// h.Loger().Infof("%+v"q, &m)
 	if err := h.s.UpdateMetric(c.RealIP(), m); err != nil {
@@ -159,6 +167,14 @@ func (h *EchoHandler) GetMetricJSON(c echo.Context) error {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if v := h.s.GetMetric(c.RealIP(), m.MType, m.ID); v != nil {
+
+		if len(h.key) != 0 {
+			err = v.Sign(h.key)
+			if err != nil {
+				h.Loger().Error(err)
+				return c.String(http.StatusBadRequest, err.Error())
+			}
+		}
 		return c.JSON(http.StatusOK, v)
 	}
 	h.Loger().Warn(m)

@@ -12,12 +12,15 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Store struct {
 	mu      sync.RWMutex
 	memstat *runtime.MemStats
 	custom  map[string]Metric
+	key     []byte
 }
 
 var runtimeMetrics = map[string]string{
@@ -50,10 +53,11 @@ var runtimeMetrics = map[string]string{
 	"TotalAlloc":    "gauge",
 }
 
-func NewStore() *Store {
+func NewStore(key []byte) *Store {
 	return &Store{
 		memstat: &runtime.MemStats{},
 		custom:  make(map[string]Metric),
+		key:     key,
 	}
 }
 func (s *Store) MemStats() []string {
@@ -95,7 +99,14 @@ func (s *Store) AllMetrics() []Metrics {
 	r := reflect.ValueOf(s.memstat)
 	for _, k := range keys {
 		if _, ok := s.custom[k]; ok {
-			res = append(res, s.custom[k].Metrics())
+			m := s.custom[k].Metrics()
+			if len(s.key) != 0 {
+				if err := m.Sign(s.key); err != nil {
+					logrus.Error(err)
+					return nil
+				}
+			}
+			res = append(res, m)
 			continue
 		}
 		f := r.Elem().FieldByName(k)
@@ -116,6 +127,12 @@ func (s *Store) AllMetrics() []Metrics {
 				a = f.Float()
 			}
 			m.Value = &a
+		}
+		if len(s.key) != 0 {
+			if err := m.Sign(s.key); err != nil {
+				logrus.Error(err)
+				return nil
+			}
 		}
 		res = append(res, m)
 	}
@@ -186,7 +203,7 @@ func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool) error {
 			return nil
 		}
 		res := s.AllMetrics()
-		// fmt.Println(res)
+		// fmt.Println(res[0].Hash)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error, len(res))
@@ -197,6 +214,7 @@ func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool) error {
 					errC <- err
 					return
 				}
+				logrus.Info(string(b))
 				buf := bytes.NewBuffer(b)
 				req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
 				if err != nil {
