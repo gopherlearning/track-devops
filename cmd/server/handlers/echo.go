@@ -35,6 +35,7 @@ func NewEchoHandler(s repositories.Repository, key []byte) Handler {
 	h.e.POST("/value/", h.GetMetricJSON)
 	h.e.POST("/update/:type/:name/:value", h.UpdateMetric)
 	h.e.GET("/value/:type/:name", h.GetMetric)
+	h.e.GET("/ping", h.Ping)
 	h.e.GET("/", h.ListMetrics)
 	return h
 }
@@ -54,6 +55,13 @@ func (h *EchoHandler) GetMetric(c echo.Context) error {
 		return c.HTML(http.StatusOK, v.String())
 	}
 	return c.NoContent(http.StatusNotFound)
+}
+
+func (h *EchoHandler) Ping(c echo.Context) error {
+	if err := h.s.Ping(c.Request().Context()); err != nil {
+		return c.HTML(http.StatusInternalServerError, err.Error())
+	}
+	return c.NoContent(http.StatusOK)
 }
 
 // ListMetrics ...

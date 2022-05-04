@@ -1,6 +1,7 @@
-package storage
+package local
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -69,6 +70,10 @@ var _ repositories.Repository = new(Storage)
 // 	}
 // 	return ""
 // }
+
+func (s *Storage) Ping(context.Context) error {
+	return nil
+}
 
 func (s *Storage) Save() error {
 	data, err := json.MarshalIndent(s.Metrics(), "", "  ")
@@ -146,58 +151,6 @@ func (s *Storage) UpdateMetric(target string, m metrics.Metrics) error {
 	s.metrics[target] = append(s.metrics[target], m)
 	return nil
 }
-
-// func (s *Storage) Update(target, metric, name, value string) error {
-// 	switch {
-// 	case len(target) == 0:
-// 		return repositories.ErrWrongTarget
-// 	case len(metric) == 0:
-// 		return repositories.ErrWrongMetricType
-// 	case len(name) == 0:
-// 		return repositories.ErrWrongMetricType
-// 	case len(value) == 0:
-// 		return repositories.ErrWrongMetricValue
-// 	}
-// 	if len(s.v) == 0 {
-// 		return repositories.ErrWrongValueInStorage
-// 	}
-
-// 	metricType := metrics.MetricType(metric)
-
-// 	if _, ok := s.v[metricType]; !ok {
-// 		return repositories.ErrWrongMetricType
-// 	}
-// 	s.mu.Lock()
-// 	defer s.mu.Unlock()
-// 	if _, ok := s.v[metricType][name]; !ok {
-// 		s.v[metricType][name] = make(map[string]interface{})
-// 	}
-// 	if _, ok := s.v[metricType][name][target]; !ok {
-// 		s.v[metricType][name][target] = nil
-// 	}
-// 	switch metricType {
-// 	case metrics.CounterType:
-// 		m, err := strconv.Atoi(value)
-// 		if err != nil {
-// 			return repositories.ErrWrongMetricValue
-// 		}
-// 		if s.v[metricType][name][target] == nil {
-// 			s.v[metricType][name][target] = 0
-// 		}
-// 		mm, ok := s.v[metricType][name][target].(int)
-// 		if !ok {
-// 			return repositories.ErrWrongValueInStorage
-// 		}
-// 		s.v[metricType][name][target] = mm + m
-// 	case metrics.GaugeType:
-// 		m, err := strconv.ParseFloat(value, 64)
-// 		if err != nil {
-// 			return repositories.ErrWrongMetricValue
-// 		}
-// 		s.v[metricType][name][target] = m
-// 	}
-// 	return nil
-// }
 
 func (s *Storage) List(targets ...string) map[string][]string {
 	s.mu.RLock()

@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/gopherlearning/track-devops/cmd/server/handlers"
-	"github.com/gopherlearning/track-devops/cmd/server/storage"
+	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newStorage(t *testing.T) *storage.Storage {
-	s, err := storage.NewStorage(false, nil)
+func newStorage(t *testing.T) *local.Storage {
+	s, err := local.NewStorage(false, nil)
 	require.NoError(t, err)
 	return s
 }

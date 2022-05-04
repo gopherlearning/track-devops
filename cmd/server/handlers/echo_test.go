@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gopherlearning/track-devops/cmd/server/storage"
+	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/sirupsen/logrus"
@@ -298,8 +298,8 @@ func TestEchoHandler_Update(t *testing.T) {
 		})
 	}
 }
-func newStorage(t *testing.T) *storage.Storage {
-	s, err := storage.NewStorage(false, nil)
+func newStorage(t *testing.T) *local.Storage {
+	s, err := local.NewStorage(false, nil)
 	require.NoError(t, err)
 	return s
 }
