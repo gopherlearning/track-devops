@@ -154,7 +154,7 @@ func (s *Store) Custom() map[string]Metric {
 	s.mu.Unlock()
 	return result
 }
-func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool) error {
+func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool, batch bool) error {
 	if client != nil && baseURL != nil {
 		if !isJSON {
 			res := s.All()
@@ -206,46 +206,12 @@ func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool) error {
 		// fmt.Println(res[0].Hash)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		if batch {
+			return sendMetrics(ctx, client, *baseURL+"/updates/", res)
+		}
 		errC := make(chan error, len(res))
 		for i := 0; i < len(res); i++ {
-			go func(ctx context.Context, c *http.Client, url string, metric Metrics) {
-				b, err := json.Marshal(metric)
-				if err != nil {
-					errC <- err
-					return
-				}
-				logrus.Info(string(b))
-				buf := bytes.NewBuffer(b)
-				req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
-				if err != nil {
-					errC <- err
-					return
-				}
-				req.Header.Set("Content-Type", "application/json")
-				resp, err := c.Do(req)
-				if err != nil {
-					errC <- err
-					return
-				}
-				defer resp.Body.Close()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := ioutil.ReadAll(resp.Body)
-					if err != nil {
-						errC <- err
-						return
-					}
-					errC <- nil
-					fmt.Println("save failed: ", string(body))
-					return
-				}
-				_, err = io.Copy(io.Discard, resp.Body)
-				if err != nil {
-					errC <- err
-					return
-				}
-				errC <- nil
-			}(ctx, client, *baseURL+"/update/", res[i])
+			go sendMetric(ctx, errC, client, *baseURL+"/update/", res[i])
 		}
 		for i := 0; i < len(res); i++ {
 			if err := <-errC; err != nil {
@@ -256,6 +222,77 @@ func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool) error {
 	}
 	return nil
 }
+
+func sendMetric(ctx context.Context, errC chan error, c *http.Client, url string, metric Metrics) {
+	b, err := json.Marshal(metric)
+	if err != nil {
+		errC <- err
+		return
+	}
+	logrus.Info(string(b))
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
+	if err != nil {
+		errC <- err
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.Do(req)
+	if err != nil {
+		errC <- err
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			errC <- err
+			return
+		}
+		errC <- nil
+		fmt.Println("save failed: ", string(body))
+		return
+	}
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		errC <- err
+		return
+	}
+	errC <- nil
+}
+func sendMetrics(ctx context.Context, c *http.Client, url string, metrics []Metrics) error {
+	b, err := json.Marshal(metrics)
+	if err != nil {
+		return err
+	}
+	logrus.Info(string(b))
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("save failed: %s. %v", string(body), err)
+	}
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Store) AddCustom(m ...Metric) {
 	s.mu.Lock()
 	for _, v := range m {

@@ -32,6 +32,7 @@ func NewEchoHandler(s repositories.Repository, key []byte) Handler {
 		Level: 5,
 	}))
 	h.e.POST("/update/", h.UpdateMetricJSON)
+	h.e.POST("/updates/", h.UpdatesMetricJSON)
 	h.e.POST("/value/", h.GetMetricJSON)
 	h.e.POST("/update/:type/:name/:value", h.UpdateMetric)
 	h.e.GET("/value/:type/:name", h.GetMetric)
@@ -112,6 +113,50 @@ func (h *EchoHandler) UpdateMetric(c echo.Context) error {
 			return c.HTML(http.StatusInternalServerError, err.Error())
 		}
 	}
+	return c.NoContent(http.StatusOK)
+}
+
+// UpdatesMetricJSON ...
+func (h *EchoHandler) UpdatesMetricJSON(c echo.Context) error {
+	if c.Request().Method != http.MethodPost {
+		return c.NoContent(http.StatusNotFound)
+	}
+	if c.Request().Header["Content-Type"][0] != "application/json" {
+		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
+	}
+	decoder := json.NewDecoder(c.Request().Body)
+	defer c.Request().Body.Close()
+	mm := []metrics.Metrics{}
+	err := decoder.Decode(&mm)
+	if err != nil {
+		h.Loger().Error(err)
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+	if len(h.key) != 0 {
+		for _, v := range mm {
+			recived := v.Hash
+			err = v.Sign(h.key)
+			if err != nil || recived != v.Hash {
+				return c.HTML(http.StatusBadRequest, "подпись не соответствует ожиданиям")
+			}
+		}
+	}
+
+	// h.Loger().Infof("%+v", &mm)
+	if err := h.s.UpdateMetric(c.RealIP(), mm...); err != nil {
+		switch err {
+		case repositories.ErrWrongMetricURL:
+			return c.HTML(http.StatusNotFound, err.Error())
+		case repositories.ErrWrongMetricValue:
+			return c.HTML(http.StatusBadRequest, err.Error())
+		// case repositories.ErrWrongMetricType:
+		case repositories.ErrWrongValueInStorage:
+			return c.HTML(http.StatusNotImplemented, err.Error())
+		default:
+			return c.HTML(http.StatusInternalServerError, err.Error())
+		}
+	}
+	// return c.NoContent(http.StatusOK)
 	return c.NoContent(http.StatusOK)
 }
 

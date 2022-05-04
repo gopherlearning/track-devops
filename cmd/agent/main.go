@@ -22,6 +22,7 @@ var args struct {
 	ReportInterval time.Duration `short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
 	Key            string        `short:"k" help:"Ключ подписи" env:"KEY"`
 	Format         string        `short:"f" help:"Report format" env:"FORMAT"`
+	Batch          bool          `short:"b" help:"Send batch mrtrics" env:"BATCH" default:"true"`
 }
 
 func init() {
@@ -67,7 +68,7 @@ func main() {
 			}
 		case <-tickerReport.C:
 			baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
-			err := metricStore.Save(&httpClient, &baseURL, args.Format == "json")
+			err := metricStore.Save(&httpClient, &baseURL, args.Format == "json", args.Batch)
 			if err != nil {
 				fmt.Println(fmt.Errorf("metric store Save() failed: %v", err))
 			}

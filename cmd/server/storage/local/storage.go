@@ -118,37 +118,39 @@ func (s *Storage) GetMetric(target, mtype, name string) *metrics.Metrics {
 	return nil
 }
 
-func (s *Storage) UpdateMetric(target string, m metrics.Metrics) error {
+func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	switch {
-	case len(target) == 0:
-		return repositories.ErrWrongTarget
-	case len(m.ID) == 0:
-		return repositories.ErrWrongMetricID
-	case len(m.MType) == 0 || (m.MType != string(metrics.CounterType) && m.MType != string(metrics.GaugeType)):
-		return repositories.ErrWrongMetricType
-	case m.Delta == nil && m.Value == nil:
-		return repositories.ErrWrongMetricValue
-	}
-	if _, ok := s.metrics[target]; !ok {
-		s.metrics[target] = make([]metrics.Metrics, 0)
-	}
-	for i := range s.metrics[target] {
-		if s.metrics[target][i].MType == m.MType && s.metrics[target][i].ID == m.ID {
-			res := s.metrics[target][i]
-			switch m.MType {
-			case string(metrics.CounterType):
-				m := *res.Delta + *m.Delta
-				res.Delta = &m
-			case string(metrics.GaugeType):
-				res.Value = m.Value
-			}
-			s.metrics[target][i] = res
-			return nil
+	for _, m := range mm {
+		switch {
+		case len(target) == 0:
+			return repositories.ErrWrongTarget
+		case len(m.ID) == 0:
+			return repositories.ErrWrongMetricID
+		case len(m.MType) == 0 || (m.MType != string(metrics.CounterType) && m.MType != string(metrics.GaugeType)):
+			return repositories.ErrWrongMetricType
+		case m.Delta == nil && m.Value == nil:
+			return repositories.ErrWrongMetricValue
 		}
+		if _, ok := s.metrics[target]; !ok {
+			s.metrics[target] = make([]metrics.Metrics, 0)
+		}
+		for i := range s.metrics[target] {
+			if s.metrics[target][i].MType == m.MType && s.metrics[target][i].ID == m.ID {
+				res := s.metrics[target][i]
+				switch m.MType {
+				case string(metrics.CounterType):
+					m := *res.Delta + *m.Delta
+					res.Delta = &m
+				case string(metrics.GaugeType):
+					res.Value = m.Value
+				}
+				s.metrics[target][i] = res
+				return nil
+			}
+		}
+		s.metrics[target] = append(s.metrics[target], m)
 	}
-	s.metrics[target] = append(s.metrics[target], m)
 	return nil
 }
 

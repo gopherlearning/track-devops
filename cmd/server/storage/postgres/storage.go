@@ -120,7 +120,7 @@ func (s *Storage) GetMetric(target string, mType string, name string) *metrics.M
 }
 
 // Update(target, metric, name, value string) error
-func (s *Storage) UpdateMetric(target string, m metrics.Metrics) error {
+func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
 	var data = make([]metrics.Metrics, 0)
 	err := s.GetConn(context.Background()).QueryRow(context.Background(), `select data::jsonb from metrics where target = $1`, target).Scan(&data)
 	if err != nil {
@@ -133,25 +133,27 @@ func (s *Storage) UpdateMetric(target string, m metrics.Metrics) error {
 		}
 	}
 	if len(data) == 0 {
-		data = []metrics.Metrics{m}
+		data = mm
 	} else {
-		for i := range data {
-			if data[i].ID != m.ID || data[i].MType != m.MType {
-				if i == len(data)-1 {
-					data = append(data, m)
+		for _, m := range mm {
+			for i := range data {
+				if data[i].ID != m.ID || data[i].MType != m.MType {
+					if i == len(data)-1 {
+						data = append(data, m)
+					}
+					continue
 				}
-				continue
+				res := data[i]
+				switch m.MType {
+				case string(metrics.CounterType):
+					m := *res.Delta + *m.Delta
+					res.Delta = &m
+				case string(metrics.GaugeType):
+					res.Value = m.Value
+				}
+				data[i] = res
+				break
 			}
-			res := data[i]
-			switch m.MType {
-			case string(metrics.CounterType):
-				m := *res.Delta + *m.Delta
-				res.Delta = &m
-			case string(metrics.GaugeType):
-				res.Value = m.Value
-			}
-			data[i] = res
-			break
 		}
 	}
 	_, err = s.GetConn(context.Background()).Exec(context.Background(), `UPDATE metrics SET data = $1 WHERE target = $2`, data, target)

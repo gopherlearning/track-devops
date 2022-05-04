@@ -139,7 +139,11 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 	}
 	files, err := migrations.ReadDir(".")
 	if err != nil {
-		tx.Rollback(ctx)
+		err = tx.Rollback(ctx)
+		if err != nil {
+			loger.Error(err)
+			return err
+		}
 		return err
 	}
 
@@ -159,8 +163,11 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 		err := r.Scan(&mi.ID, &mi.ModifiedAt)
 
 		if err != nil && err != pgx.ErrNoRows {
-			tx.Rollback(ctx)
-
+			err = tx.Rollback(ctx)
+			if err != nil {
+				loger.Error(err)
+				return err
+			}
 			return err
 		} else if err == nil {
 			continue
@@ -168,20 +175,32 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 
 		script, err := migrations.ReadFile(fileName)
 		if err != nil {
-			tx.Rollback(ctx)
+			err = tx.Rollback(ctx)
+			if err != nil {
+				loger.Error(err)
+				return err
+			}
 			return err
 		}
 		loger.Info(string(script))
 		if _, err := tx.Exec(ctx, string(script)); err != nil {
 			loger.Error(err)
-			tx.Rollback(ctx)
+			err = tx.Rollback(ctx)
+			if err != nil {
+				loger.Error(err)
+				return err
+			}
 			return err
 		}
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO migration (id, modified_at) VALUES($1, $2) ON CONFLICT (id) DO UPDATE SET modified_at = $2;`,
 			fileName, time.Now().UTC(),
 		); err != nil {
-			tx.Rollback(ctx)
+			err = tx.Rollback(ctx)
+			if err != nil {
+				loger.Error(err)
+				return err
+			}
 			return err
 		}
 	}
