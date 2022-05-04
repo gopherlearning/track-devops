@@ -168,6 +168,7 @@ func (s *Storage) Metrics() map[string][]metrics.Metrics {
 		s.loger.Errorf("queryRow failed: %v", err)
 		os.Exit(1)
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var target string
 		var data []metrics.Metrics
@@ -194,6 +195,7 @@ func (s *Storage) List(targets ...string) map[string][]string {
 		s.loger.Errorf("QueryRow failed: %v", err)
 		os.Exit(1)
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var target string
 		var data []metrics.Metrics

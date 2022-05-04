@@ -34,7 +34,7 @@ func TestServer(t *testing.T) {
 			require.NotNil(t, s)
 			wg := sync.WaitGroup{}
 			wg.Add(2)
-			time.AfterFunc(time.Second, func() {
+			time.AfterFunc(500*time.Millisecond, func() {
 				t.Run("Test Stop()", func(t *testing.T) {
 					defer wg.Done()
 					conn, err := net.DialTimeout("tcp", tt.listen, time.Second)
