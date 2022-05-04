@@ -142,7 +142,15 @@ func (s *Storage) UpdateMetric(target string, m metrics.Metrics) error {
 				}
 				continue
 			}
-			data[i] = m
+			res := data[i]
+			switch m.MType {
+			case string(metrics.CounterType):
+				m := *res.Delta + *m.Delta
+				res.Delta = &m
+			case string(metrics.GaugeType):
+				res.Value = m.Value
+			}
+			data[i] = res
 			break
 		}
 	}
@@ -217,7 +225,8 @@ func (s *Storage) ListProm(targets ...string) []byte {
 }
 
 func (s *Storage) Ping(ctx context.Context) error {
-	ctx_, _ := context.WithTimeout(ctx, 3*time.Second)
+	ctx_, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	ping := make(chan error)
 	go func() {
 		ping <- s.GetConn(ctx_).Ping(ctx_)
