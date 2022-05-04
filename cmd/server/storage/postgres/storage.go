@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -124,7 +125,7 @@ func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
 	var data = make([]metrics.Metrics, 0)
 	err := s.GetConn(context.Background()).QueryRow(context.Background(), `select data::jsonb from metrics where target = $1`, target).Scan(&data)
 	if err != nil {
-		if err != pgx.ErrNoRows {
+		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
 		_, err = s.GetConn(context.Background()).Exec(context.Background(), `INSERT INTO metrics (target, data) VALUES($1, $2)`, target, data)
