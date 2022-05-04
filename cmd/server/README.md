@@ -34,7 +34,7 @@ go run cmd/server/main.go -a=127.0.0.1:1212 -f=/tmp/bla -i=5s -r=true -k=bhygyg
 
 
 # run with db
-go run cmd/server/main.go -a=127.0.0.1:1212 -f=/tmp/bla -i=5s -d=postgres://postgres:mysecretpassword@localhost:13131/postgres -r=true -k=bhygyg
+go run cmd/server/main.go -a=127.0.0.1:1212 -f=/tmp/bla -i=5s -d=postgres://postgres:mysecretpassword@localhost:13131/postgres?sslmode=disable -r=true -k=bhygyg
 
 
 

@@ -41,6 +41,10 @@ func init() {
 				os.Args[i] = fmt.Sprintf("--restore=%s", a[1])
 				continue
 			}
+			if a[0] == "-d" {
+				os.Args[i] = fmt.Sprintf("--database-dsn=%s", a[1])
+				continue
+			}
 			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
 		}
 	}
