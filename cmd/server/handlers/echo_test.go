@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gopherlearning/track-devops/cmd/server/storage"
+	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/sirupsen/logrus"
@@ -56,7 +56,7 @@ func TestEchoHandler_Get(t *testing.T) {
 				// require.NoError(t, s.Update(tt.target, m[2], m[3], tt.value))
 				require.NoError(t, s.UpdateMetric(tt.target, metrics.Metrics{MType: m[2], ID: m[3], Delta: metrics.GetInt64Pointer(tt.value["counter"].(int64)), Value: metrics.GetFloat64Pointer(tt.value["gauge"].(float64))}))
 			}
-			handler := NewEchoHandler(s)
+			handler := NewEchoHandler(s, nil)
 			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
 			w := httptest.NewRecorder()
 			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
@@ -251,7 +251,7 @@ func TestEchoHandler_Update(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewEchoHandler(tt.fields.s)
+			handler := NewEchoHandler(tt.fields.s, nil)
 			request := httptest.NewRequest(tt.method, tt.request1, nil)
 			w := httptest.NewRecorder()
 			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
@@ -298,8 +298,8 @@ func TestEchoHandler_Update(t *testing.T) {
 		})
 	}
 }
-func newStorage(t *testing.T) *storage.Storage {
-	s, err := storage.NewStorage(false, nil)
+func newStorage(t *testing.T) *local.Storage {
+	s, err := local.NewStorage(false, nil)
 	require.NoError(t, err)
 	return s
 }
@@ -388,7 +388,7 @@ func TestEchoHandlerJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewEchoHandler(tt.fields.s)
+			handler := NewEchoHandler(tt.fields.s, nil)
 			handler.SetLoger(loger)
 
 			buf := bytes.NewBufferString(tt.body1)

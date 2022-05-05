@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -19,7 +20,7 @@ func NewEchoServer(h handlers.Handler) Web {
 func (s *EchoServer) Start(listen string) error {
 	s.serv.Server.Addr = listen
 	err := s.serv.Server.ListenAndServe()
-	if err == http.ErrServerClosed {
+	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
 	return err

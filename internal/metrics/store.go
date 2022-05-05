@@ -12,12 +12,15 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Store struct {
 	mu      sync.RWMutex
 	memstat *runtime.MemStats
 	custom  map[string]Metric
+	key     []byte
 }
 
 var runtimeMetrics = map[string]string{
@@ -50,10 +53,11 @@ var runtimeMetrics = map[string]string{
 	"TotalAlloc":    "gauge",
 }
 
-func NewStore() *Store {
+func NewStore(key []byte) *Store {
 	return &Store{
 		memstat: &runtime.MemStats{},
 		custom:  make(map[string]Metric),
+		key:     key,
 	}
 }
 func (s *Store) MemStats() []string {
@@ -95,7 +99,14 @@ func (s *Store) AllMetrics() []Metrics {
 	r := reflect.ValueOf(s.memstat)
 	for _, k := range keys {
 		if _, ok := s.custom[k]; ok {
-			res = append(res, s.custom[k].Metrics())
+			m := s.custom[k].Metrics()
+			if len(s.key) != 0 {
+				if err := m.Sign(s.key); err != nil {
+					logrus.Error(err)
+					return nil
+				}
+			}
+			res = append(res, m)
 			continue
 		}
 		f := r.Elem().FieldByName(k)
@@ -117,6 +128,12 @@ func (s *Store) AllMetrics() []Metrics {
 			}
 			m.Value = &a
 		}
+		if len(s.key) != 0 {
+			if err := m.Sign(s.key); err != nil {
+				logrus.Error(err)
+				return nil
+			}
+		}
 		res = append(res, m)
 	}
 	// for _, k := range keys {
@@ -137,7 +154,7 @@ func (s *Store) Custom() map[string]Metric {
 	s.mu.Unlock()
 	return result
 }
-func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool) error {
+func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool, batch bool) error {
 	if client != nil && baseURL != nil {
 		if !isJSON {
 			res := s.All()
@@ -186,48 +203,15 @@ func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool) error {
 			return nil
 		}
 		res := s.AllMetrics()
-		// fmt.Println(res)
+		// fmt.Println(res[0].Hash)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		if batch {
+			return sendMetrics(ctx, client, *baseURL+"/updates/", res)
+		}
 		errC := make(chan error, len(res))
 		for i := 0; i < len(res); i++ {
-			go func(ctx context.Context, c *http.Client, url string, metric Metrics) {
-				b, err := json.Marshal(metric)
-				if err != nil {
-					errC <- err
-					return
-				}
-				buf := bytes.NewBuffer(b)
-				req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
-				if err != nil {
-					errC <- err
-					return
-				}
-				req.Header.Set("Content-Type", "application/json")
-				resp, err := c.Do(req)
-				if err != nil {
-					errC <- err
-					return
-				}
-				defer resp.Body.Close()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := ioutil.ReadAll(resp.Body)
-					if err != nil {
-						errC <- err
-						return
-					}
-					errC <- nil
-					fmt.Println("save failed: ", string(body))
-					return
-				}
-				_, err = io.Copy(io.Discard, resp.Body)
-				if err != nil {
-					errC <- err
-					return
-				}
-				errC <- nil
-			}(ctx, client, *baseURL+"/update/", res[i])
+			go sendMetric(ctx, errC, client, *baseURL+"/update/", res[i])
 		}
 		for i := 0; i < len(res); i++ {
 			if err := <-errC; err != nil {
@@ -238,6 +222,77 @@ func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool) error {
 	}
 	return nil
 }
+
+func sendMetric(ctx context.Context, errC chan error, c *http.Client, url string, metric Metrics) {
+	b, err := json.Marshal(metric)
+	if err != nil {
+		errC <- err
+		return
+	}
+	logrus.Info(string(b))
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
+	if err != nil {
+		errC <- err
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.Do(req)
+	if err != nil {
+		errC <- err
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			errC <- err
+			return
+		}
+		errC <- nil
+		fmt.Println("save failed: ", string(body))
+		return
+	}
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		errC <- err
+		return
+	}
+	errC <- nil
+}
+func sendMetrics(ctx context.Context, c *http.Client, url string, metrics []Metrics) error {
+	b, err := json.Marshal(metrics)
+	if err != nil {
+		return err
+	}
+	logrus.Info(string(b))
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("save failed: %s. %v", string(body), err)
+	}
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Store) AddCustom(m ...Metric) {
 	s.mu.Lock()
 	for _, v := range m {

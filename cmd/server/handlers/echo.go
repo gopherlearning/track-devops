@@ -19,21 +19,24 @@ type EchoHandler struct {
 	s     repositories.Repository
 	e     *echo.Echo
 	loger logrus.FieldLogger
+	key   []byte
 }
 
 // NewHandler создаёт новый экземпляр обработчика запросов, привязанный к хранилищу
-func NewEchoHandler(s repositories.Repository) Handler {
+func NewEchoHandler(s repositories.Repository, key []byte) Handler {
 	e := echo.New()
 	// e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	h := &EchoHandler{s: s, e: e}
+	h := &EchoHandler{s: s, e: e, key: key}
 	h.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
 	h.e.POST("/update/", h.UpdateMetricJSON)
+	h.e.POST("/updates/", h.UpdatesMetricJSON)
 	h.e.POST("/value/", h.GetMetricJSON)
 	h.e.POST("/update/:type/:name/:value", h.UpdateMetric)
 	h.e.GET("/value/:type/:name", h.GetMetric)
+	h.e.GET("/ping", h.Ping)
 	h.e.GET("/", h.ListMetrics)
 	return h
 }
@@ -53,6 +56,13 @@ func (h *EchoHandler) GetMetric(c echo.Context) error {
 		return c.HTML(http.StatusOK, v.String())
 	}
 	return c.NoContent(http.StatusNotFound)
+}
+
+func (h *EchoHandler) Ping(c echo.Context) error {
+	if err := h.s.Ping(c.Request().Context()); err != nil {
+		return c.HTML(http.StatusInternalServerError, err.Error())
+	}
+	return c.NoContent(http.StatusOK)
 }
 
 // ListMetrics ...
@@ -106,6 +116,50 @@ func (h *EchoHandler) UpdateMetric(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
+// UpdatesMetricJSON ...
+func (h *EchoHandler) UpdatesMetricJSON(c echo.Context) error {
+	if c.Request().Method != http.MethodPost {
+		return c.NoContent(http.StatusNotFound)
+	}
+	if c.Request().Header["Content-Type"][0] != "application/json" {
+		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
+	}
+	decoder := json.NewDecoder(c.Request().Body)
+	defer c.Request().Body.Close()
+	mm := []metrics.Metrics{}
+	err := decoder.Decode(&mm)
+	if err != nil {
+		h.Loger().Error(err)
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+	if len(h.key) != 0 {
+		for _, v := range mm {
+			recived := v.Hash
+			err = v.Sign(h.key)
+			if err != nil || recived != v.Hash {
+				return c.HTML(http.StatusBadRequest, "подпись не соответствует ожиданиям")
+			}
+		}
+	}
+
+	// h.Loger().Infof("%+v", &mm)
+	if err := h.s.UpdateMetric(c.RealIP(), mm...); err != nil {
+		switch err {
+		case repositories.ErrWrongMetricURL:
+			return c.HTML(http.StatusNotFound, err.Error())
+		case repositories.ErrWrongMetricValue:
+			return c.HTML(http.StatusBadRequest, err.Error())
+		// case repositories.ErrWrongMetricType:
+		case repositories.ErrWrongValueInStorage:
+			return c.HTML(http.StatusNotImplemented, err.Error())
+		default:
+			return c.HTML(http.StatusInternalServerError, err.Error())
+		}
+	}
+	// return c.NoContent(http.StatusOK)
+	return c.NoContent(http.StatusOK)
+}
+
 // UpdateMetricJSON ...
 func (h *EchoHandler) UpdateMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
@@ -121,6 +175,13 @@ func (h *EchoHandler) UpdateMetricJSON(c echo.Context) error {
 	if err != nil {
 		h.Loger().Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
+	}
+	if len(h.key) != 0 {
+		recived := m.Hash
+		err = m.Sign(h.key)
+		if err != nil || recived != m.Hash {
+			return c.HTML(http.StatusBadRequest, "подпись не соответствует ожиданиям")
+		}
 	}
 
 	// h.Loger().Infof("%+v"q, &m)
@@ -159,6 +220,14 @@ func (h *EchoHandler) GetMetricJSON(c echo.Context) error {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if v := h.s.GetMetric(c.RealIP(), m.MType, m.ID); v != nil {
+
+		if len(h.key) != 0 {
+			err = v.Sign(h.key)
+			if err != nil {
+				h.Loger().Error(err)
+				return c.String(http.StatusBadRequest, err.Error())
+			}
+		}
 		return c.JSON(http.StatusOK, v)
 	}
 	h.Loger().Warn(m)

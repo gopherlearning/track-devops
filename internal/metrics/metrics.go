@@ -1,6 +1,9 @@
 package metrics
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +18,7 @@ type Metrics struct {
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+	Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
 }
 
 type MetricsJSON struct {
@@ -41,20 +45,42 @@ func (s Metrics) String() string {
 }
 
 func (s Metrics) StringFull() string {
+	var hash string
+	if len(s.Hash) != 0 {
+		hash = fmt.Sprintf(" - %s", s.Hash)
+	}
 	switch s.MType {
 	case string(CounterType):
 		if s.Delta == nil {
-			return fmt.Sprintf(`%s - %s`, s.MType, s.ID)
+			return fmt.Sprintf(`%s - %s%s`, s.MType, s.ID, hash)
 		}
-		return fmt.Sprintf(`%s - %s - %d`, s.MType, s.ID, *s.Delta)
+		return fmt.Sprintf(`%s - %s - %d%s`, s.MType, s.ID, *s.Delta, hash)
 	case string(GaugeType):
 		if s.Value == nil {
-			return fmt.Sprintf(`%s - %s`, s.MType, s.ID)
+			return fmt.Sprintf(`%s - %s%s`, s.MType, s.ID, hash)
 		}
-		return fmt.Sprintf(`%s - %s - %g`, s.MType, s.ID, *s.Value)
+		return fmt.Sprintf(`%s - %s - %g%s`, s.MType, s.ID, *s.Value, hash)
 	default:
 		return ""
 	}
+}
+
+// MarshalJSON реализует интерфейс json.Marshaler.
+func (s *Metrics) Sign(key []byte) error {
+	var src []byte
+	switch s.MType {
+	case string(CounterType):
+		src = []byte(fmt.Sprintf("%s:counter:%d", s.ID, *s.Delta))
+	case string(GaugeType):
+		src = []byte(fmt.Sprintf("%s:gauge:%f", s.ID, *s.Value))
+	default:
+		return ErrNoSuchMetricType
+	}
+	h := hmac.New(sha256.New, key)
+	h.Write(src)
+	s.Hash = hex.EncodeToString(h.Sum(nil))
+	// logrus.Error(s.Hash)
+	return nil
 }
 
 // MarshalJSON реализует интерфейс json.Marshaler.
@@ -78,6 +104,7 @@ func (s *Metrics) MarshalJSON() ([]byte, error) {
 			MetricsAlias: MetricsAlias(*s),
 			Value:        float64(*s.Value),
 		}
+		// logrus.Warn(aliasValue.Hash)
 		return json.Marshal(aliasValue)
 	default:
 		return nil, ErrNoSuchMetricType
@@ -96,12 +123,14 @@ func (s *Metrics) UnmarshalJSON(data []byte) error {
 	case "counter":
 		(*s) = Metrics{
 			ID:    raw.ID,
+			Hash:  raw.Hash,
 			MType: raw.MType,
 			Delta: raw.Delta,
 		}
 	case "gauge":
 		(*s) = Metrics{
 			ID:    raw.ID,
+			Hash:  raw.Hash,
 			MType: raw.MType,
 			Value: raw.Value,
 		}

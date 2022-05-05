@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -12,8 +13,10 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/caarlos0/env/v6"
 	"github.com/gopherlearning/track-devops/cmd/server/handlers"
-	"github.com/gopherlearning/track-devops/cmd/server/storage"
+	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
+	"github.com/gopherlearning/track-devops/cmd/server/storage/postgres"
 	"github.com/gopherlearning/track-devops/cmd/server/web"
+	"github.com/gopherlearning/track-devops/internal/repositories"
 
 	"github.com/sirupsen/logrus"
 )
@@ -23,37 +26,9 @@ type Args struct {
 	StoreInterval time.Duration `short:"i" help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s"`
 	StoreFile     string        `short:"f" help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json"`
 	Restore       bool          `short:"r" help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true"`
+	DatabaseDSN   string        `short:"d" help:"трока с адресом подключения к БД" env:"DATABASE_DSN"`
+	Key           string        `short:"k" help:"Ключ подписи" env:"KEY"`
 }
-
-// func (a Args) Validate() error {
-// 	logrus.Warn(a)
-// 	// r := reflect.ValueOf(a)
-
-// 	ps := reflect.ValueOf(&a)
-// 	// struct
-// 	s := ps.Elem()
-// 	for i := 0; i < s.NumField(); i++ {
-// 		f := s.Field(i)
-// 		if f.IsValid() {
-// 			// A Value can be changed only if it is
-// 			// addressable and was not obtained by
-// 			// the use of unexported struct fields.
-// 			if f.CanSet() {
-// 				// change value of N
-// 				if f.Kind() == reflect.String {
-// 					if len(f.String()) != 0 && f.String()[0] == '=' {
-// 						f.SetString(f.String()[1:])
-// 						args = a
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// 	// if s.Kind() == reflect.Struct {
-// 	// 	// exported field
-// 	// }
-// 	return nil
-// }
 
 var args Args
 
@@ -64,6 +39,10 @@ func init() {
 			a := strings.Split(os.Args[i], "=")
 			if a[0] == "-r" {
 				os.Args[i] = fmt.Sprintf("--restore=%s", a[1])
+				continue
+			}
+			if a[0] == "-d" {
+				os.Args[i] = fmt.Sprintf("--database-dsn=%s", a[1])
 				continue
 			}
 			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
@@ -85,18 +64,28 @@ func init() {
 }
 
 func main() {
+	logrus.SetReportCaller(true)
 	kong.Parse(&args)
 	err := env.Parse(&args)
 	if err != nil {
 		logrus.Fatal(err)
 	}
 	logrus.Infof("%+v", args)
-	store, err := storage.NewStorage(args.Restore, &args.StoreInterval, args.StoreFile)
-	if err != nil {
-		logrus.Error(err)
-		return
+	var store repositories.Repository
+	if len(args.DatabaseDSN) != 0 {
+		store, err = postgres.NewStorage(args.DatabaseDSN, logrus.StandardLogger())
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+	} else {
+		store, err = local.NewStorage(args.Restore, &args.StoreInterval, args.StoreFile)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
 	}
-	h := handlers.NewEchoHandler(store)
+	h := handlers.NewEchoHandler(store, []byte(args.Key))
 	h.SetLoger(logrus.StandardLogger())
 	s := web.NewEchoServer(h)
 
@@ -129,9 +118,16 @@ func main() {
 	if err != nil {
 		logrus.Error(err)
 	}
-	err = store.Save()
-	if err != nil {
-		logrus.Error(err)
+	if len(args.DatabaseDSN) != 0 {
+		err = store.(*postgres.Storage).Close(context.Background())
+		if err != nil {
+			logrus.Error(err)
+		}
+	} else {
+		err = store.(*local.Storage).Save()
+		if err != nil {
+			logrus.Error(err)
+		}
 	}
 	logrus.Infof("Server stoped by signal \"%v\"\n", sig)
 }

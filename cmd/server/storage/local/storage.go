@@ -1,6 +1,7 @@
-package storage
+package local
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -70,6 +71,10 @@ var _ repositories.Repository = new(Storage)
 // 	return ""
 // }
 
+func (s *Storage) Ping(context.Context) error {
+	return nil
+}
+
 func (s *Storage) Save() error {
 	data, err := json.MarshalIndent(s.Metrics(), "", "  ")
 	if err != nil {
@@ -113,91 +118,41 @@ func (s *Storage) GetMetric(target, mtype, name string) *metrics.Metrics {
 	return nil
 }
 
-func (s *Storage) UpdateMetric(target string, m metrics.Metrics) error {
+func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	switch {
-	case len(target) == 0:
-		return repositories.ErrWrongTarget
-	case len(m.ID) == 0:
-		return repositories.ErrWrongMetricID
-	case len(m.MType) == 0 || (m.MType != string(metrics.CounterType) && m.MType != string(metrics.GaugeType)):
-		return repositories.ErrWrongMetricType
-	case m.Delta == nil && m.Value == nil:
-		return repositories.ErrWrongMetricValue
-	}
-	if _, ok := s.metrics[target]; !ok {
-		s.metrics[target] = make([]metrics.Metrics, 0)
-	}
-	for i := range s.metrics[target] {
-		if s.metrics[target][i].MType == m.MType && s.metrics[target][i].ID == m.ID {
-			res := s.metrics[target][i]
-			switch m.MType {
-			case string(metrics.CounterType):
-				m := *res.Delta + *m.Delta
-				res.Delta = &m
-			case string(metrics.GaugeType):
-				res.Value = m.Value
-			}
-			s.metrics[target][i] = res
-			return nil
+	for _, m := range mm {
+		switch {
+		case len(target) == 0:
+			return repositories.ErrWrongTarget
+		case len(m.ID) == 0:
+			return repositories.ErrWrongMetricID
+		case len(m.MType) == 0 || (m.MType != string(metrics.CounterType) && m.MType != string(metrics.GaugeType)):
+			return repositories.ErrWrongMetricType
+		case m.Delta == nil && m.Value == nil:
+			return repositories.ErrWrongMetricValue
 		}
+		if _, ok := s.metrics[target]; !ok {
+			s.metrics[target] = make([]metrics.Metrics, 0)
+		}
+		for i := range s.metrics[target] {
+			if s.metrics[target][i].MType == m.MType && s.metrics[target][i].ID == m.ID {
+				res := s.metrics[target][i]
+				switch m.MType {
+				case string(metrics.CounterType):
+					m := *res.Delta + *m.Delta
+					res.Delta = &m
+				case string(metrics.GaugeType):
+					res.Value = m.Value
+				}
+				s.metrics[target][i] = res
+				return nil
+			}
+		}
+		s.metrics[target] = append(s.metrics[target], m)
 	}
-	s.metrics[target] = append(s.metrics[target], m)
 	return nil
 }
-
-// func (s *Storage) Update(target, metric, name, value string) error {
-// 	switch {
-// 	case len(target) == 0:
-// 		return repositories.ErrWrongTarget
-// 	case len(metric) == 0:
-// 		return repositories.ErrWrongMetricType
-// 	case len(name) == 0:
-// 		return repositories.ErrWrongMetricType
-// 	case len(value) == 0:
-// 		return repositories.ErrWrongMetricValue
-// 	}
-// 	if len(s.v) == 0 {
-// 		return repositories.ErrWrongValueInStorage
-// 	}
-
-// 	metricType := metrics.MetricType(metric)
-
-// 	if _, ok := s.v[metricType]; !ok {
-// 		return repositories.ErrWrongMetricType
-// 	}
-// 	s.mu.Lock()
-// 	defer s.mu.Unlock()
-// 	if _, ok := s.v[metricType][name]; !ok {
-// 		s.v[metricType][name] = make(map[string]interface{})
-// 	}
-// 	if _, ok := s.v[metricType][name][target]; !ok {
-// 		s.v[metricType][name][target] = nil
-// 	}
-// 	switch metricType {
-// 	case metrics.CounterType:
-// 		m, err := strconv.Atoi(value)
-// 		if err != nil {
-// 			return repositories.ErrWrongMetricValue
-// 		}
-// 		if s.v[metricType][name][target] == nil {
-// 			s.v[metricType][name][target] = 0
-// 		}
-// 		mm, ok := s.v[metricType][name][target].(int)
-// 		if !ok {
-// 			return repositories.ErrWrongValueInStorage
-// 		}
-// 		s.v[metricType][name][target] = mm + m
-// 	case metrics.GaugeType:
-// 		m, err := strconv.ParseFloat(value, 64)
-// 		if err != nil {
-// 			return repositories.ErrWrongMetricValue
-// 		}
-// 		s.v[metricType][name][target] = m
-// 	}
-// 	return nil
-// }
 
 func (s *Storage) List(targets ...string) map[string][]string {
 	s.mu.RLock()
