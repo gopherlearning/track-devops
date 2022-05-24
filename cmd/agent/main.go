@@ -90,7 +90,6 @@ func main() {
 	})
 	g.Go(func() error {
 		s := <-terminate
-
 		fmt.Printf("Agent stoped by signal \"%v\"\n", s)
 		return stopError
 	})

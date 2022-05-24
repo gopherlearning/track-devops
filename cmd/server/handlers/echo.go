@@ -25,7 +25,7 @@ type EchoHandler struct {
 // NewHandler создаёт новый экземпляр обработчика запросов, привязанный к хранилищу
 func NewEchoHandler(s repositories.Repository, key []byte) Handler {
 	e := echo.New()
-	e.Use(middleware.Logger())
+	// e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	h := &EchoHandler{s: s, e: e, key: key}
 	h.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
