@@ -1,25 +1,22 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/caarlos0/env/v6"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/alecthomas/kong"
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/sirupsen/logrus"
 )
 
-var errStop = errors.New("agent stoped by signal")
 var args struct {
 	ServerAddr     string        `short:"a" help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
 	PollInterval   time.Duration `short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
@@ -57,44 +54,40 @@ func main() {
 	tickerPoll := time.NewTicker(args.PollInterval)
 	tickerReport := time.NewTicker(args.ReportInterval)
 	metricStore := metrics.NewStore([]byte(args.Key))
-	metricStore.AddCustom(new(metrics.PollCount), new(metrics.RandomValue), new(metrics.TotalMemory), new(metrics.FreeMemory), new(metrics.CPUutilization1))
+	metricStore.AddCustom(
+		new(metrics.PollCount),
+		new(metrics.RandomValue),
+		new(metrics.TotalMemory),
+		new(metrics.FreeMemory),
+		new(metrics.CPUutilization1),
+	)
+	wg := &sync.WaitGroup{}
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
-	g, ctx := errgroup.WithContext(context.Background())
-	g.Go(func() error {
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-tickerPoll.C:
+	for {
+		select {
+		case s := <-terminate:
+			fmt.Printf("Agent stoped by signal \"%v\"\n", s)
+			return
+		case <-tickerPoll.C:
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				err := metricStore.Scrape()
 				if err != nil {
-					return fmt.Errorf("metric store Scrape() failed: %v", err)
+					fmt.Println(fmt.Errorf("metric store Scrape() failed: %v", err))
 				}
-			}
-		}
-	})
-	g.Go(func() error {
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-tickerReport.C:
+			}()
+		case <-tickerReport.C:
+			wg.Add(1)
+			go func() {
+				wg.Done()
 				baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
 				err := metricStore.Save(&httpClient, &baseURL, args.Format == "json", args.Batch)
 				if err != nil {
-					return fmt.Errorf("metric store Save() failed: %v", err)
+					fmt.Println(fmt.Errorf("metric store Save() failed: %v", err))
 				}
-			}
+			}()
 		}
-	})
-	g.Go(func() error {
-		s := <-terminate
-		fmt.Printf("Agent stoped by signal \"%v\"\n", s)
-		return errStop
-	})
-	err = g.Wait()
-	if err != nil && err != errStop {
-		logrus.Error("unexpected error: ", err)
 	}
 }
