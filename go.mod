@@ -6,18 +6,18 @@ require (
 	github.com/akkuman/logrus-loki-hook v0.0.0-20210518091319-f99fe13c48f5
 	github.com/alecthomas/kong v0.5.0
 	github.com/caarlos0/env/v6 v6.9.1
-	github.com/driftprogramming/pgxpoolmock v1.1.0
-	github.com/golang/mock v1.6.0
 	github.com/jackc/pgx/v4 v4.16.0
 	github.com/labstack/echo/v4 v4.7.2
-	github.com/pashagolub/pgxmock v1.5.0
+	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.1
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 )
 
 require (
 	github.com/afiskon/promtail-client v0.0.0-20190305142237-506f3f921e9c // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
@@ -34,8 +34,11 @@ require (
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.10 // indirect
+	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.1 // indirect
+	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
 	golang.org/x/net v0.0.0-20220412020605-290c469a71a5 // indirect
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect

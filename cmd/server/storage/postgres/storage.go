@@ -26,7 +26,6 @@ type Storage struct {
 }
 
 func NewStorage(dsn string, loger logrus.FieldLogger) (*Storage, error) {
-	// urlExample := "postgres://postgres:mysecretpassword@localhost:13131/postgres"
 	connConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, err
@@ -49,12 +48,9 @@ func (s *Storage) Close(ctx context.Context) error {
 }
 
 func (s *Storage) reconnect(ctx context.Context) (*pgxpool.Pool, error) {
-	// s.mu.Lock()
-	// defer s.mu.Unlock()
 
 	pool, err := pgxpool.ConnectConfig(context.Background(), s.connConfig)
 
-	// conn, err := pgx.ConnectConfig(context.Background(), s.connConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connection to database: %v", err)
 	}
@@ -66,11 +62,7 @@ func (s *Storage) reconnect(ctx context.Context) (*pgxpool.Pool, error) {
 
 func (s *Storage) GetConn(ctx context.Context) *pgxpool.Pool {
 	var err error
-	// if s.db == nil {
-	// 	if s.db, err = s.reconnect(ctx); err != nil {
-	// 		s.loger.Errorf("%s", err)
-	// 	}
-	// }
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.db == nil || s.db.Ping(ctx) != nil {
@@ -192,7 +184,6 @@ func (s *Storage) Metrics() map[string][]metrics.Metrics {
 func (s *Storage) List(targets ...string) map[string][]string {
 
 	res := make(map[string][]string)
-	// fromDB := make(map[string][]metrics.Metrics)
 	rows, err := s.GetConn(context.Background()).Query(context.Background(), `select target, data::jsonb from metrics`)
 	if err != nil {
 		s.loger.Errorf("QueryRow failed: %v", err)
