@@ -19,7 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var stopError = errors.New("agent stoped by signal")
+var errStop = errors.New("agent stoped by signal")
 var args struct {
 	ServerAddr     string        `short:"a" help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
 	PollInterval   time.Duration `short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
@@ -91,10 +91,10 @@ func main() {
 	g.Go(func() error {
 		s := <-terminate
 		fmt.Printf("Agent stoped by signal \"%v\"\n", s)
-		return stopError
+		return errStop
 	})
 	err = g.Wait()
-	if err != nil && err != stopError {
+	if err != nil && err != errStop {
 		logrus.Error("unexpected error: ", err)
 	}
 }
