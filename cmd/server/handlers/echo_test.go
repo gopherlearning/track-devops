@@ -19,9 +19,6 @@ import (
 )
 
 func TestEchoHandler_Get(t *testing.T) {
-	// type fields struct {
-	// 	v map[metrics.MetricType]map[string]map[string]interface{}
-	// }
 	tests := []struct {
 		name string
 		// fields  fields
@@ -94,9 +91,8 @@ func TestEchoHandler_Update(t *testing.T) {
 		want     want
 	}{
 		{
-			name:   "TestIteration2/TestCounterHandlers/invalid_value",
-			fields: fields{s: newStorage(t)},
-			// content:  "text/plain",
+			name:     "TestIteration2/TestCounterHandlers/invalid_value",
+			fields:   fields{s: newStorage(t)},
 			method:   http.MethodPost,
 			request1: "/update/counter/testCounter/none",
 			request2: "",
@@ -108,9 +104,8 @@ func TestEchoHandler_Update(t *testing.T) {
 			},
 		},
 		{
-			name:   "TestIteration2/TestCounterHandlers/update",
-			fields: fields{s: newStorage(t)},
-			// content:  "text/plain",
+			name:     "TestIteration2/TestCounterHandlers/update",
+			fields:   fields{s: newStorage(t)},
 			method:   http.MethodPost,
 			request1: "/update/counter/testCounter/100",
 			request2: "/update/counter/testCounter/101",
@@ -122,9 +117,8 @@ func TestEchoHandler_Update(t *testing.T) {
 			},
 		},
 		{
-			name:   "TestIteration2/TestCounterHandlers/without_id",
-			fields: fields{s: newStorage(t)},
-			// content:  "text/plain",
+			name:     "TestIteration2/TestCounterHandlers/without_id",
+			fields:   fields{s: newStorage(t)},
 			method:   http.MethodPost,
 			request1: "/update/counter/",
 			request2: "",
@@ -356,31 +350,6 @@ func TestEchoHandlerJSON(t *testing.T) {
 				resp2:       `{"id":"RandomValue","type":"gauge","value":1.1}` + "\n",
 			},
 		},
-		// {
-		// 	name: "TestIteration2/TestGaugeHandlersJSONupdate",
-		// 	// fields: fields{s: &storage.Storage{
-		// 	// 	v: map[metrics.MetricType]map[string]map[string]interface{}{
-		// 	// 		metrics.GaugeType: map[string]map[string]interface{}{
-		// 	// 			"192.0.2.1": map[string]interface{}{
-		// 	// 				"RandomValue": metrics.RandomValue{v: 2.2},
-		// 	// 			},
-		// 	// 		},
-		// 	// 	},
-		// 	// }},
-		// 	fields:   fields{s: storage.NewStorage(false, nil)},
-		// 	content:  "application/json",
-		// 	method:   http.MethodPost,
-		// 	request1: "/update/",
-		// 	body1:    `{"id":"RandomValue","type":"gauge","value":2.2}`,
-		// 	request2: "/value/",
-		// 	body2:    `{"id":"RandomValue","type":"gauge"}`,
-		// 	want: want{
-		// 		statusCode1: http.StatusOK,
-		// 		resp1:       ``,
-		// 		statusCode2: http.StatusOK,
-		// 		resp2:       `{"id":"RandomValue","type":"gauge","value":2.2}`,
-		// 	},
-		// },
 	}
 	loger := logrus.New()
 	loger.SetReportCaller(true)
@@ -409,11 +378,6 @@ func TestEchoHandlerJSON(t *testing.T) {
 			if result.StatusCode != http.StatusOK {
 				return
 			}
-
-			// match := rMetricURL.FindStringSubmatch(tt.request1)
-			// require.Equal(t, len(match), 4)
-			// assert.Contains(t, tt.fields.s.List()["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value1))
-			// fmt.Println(tt.name, tt.fields.s.List())
 			buf = bytes.NewBufferString(tt.body2)
 			request = httptest.NewRequest(tt.method, tt.request2, buf)
 			request.Header.Add("Content-Type", tt.content)
@@ -431,9 +395,6 @@ func TestEchoHandlerJSON(t *testing.T) {
 			assert.Equal(t, tt.want.resp2, string(body))
 
 			if result.StatusCode == http.StatusOK {
-				// match := rMetricURL.FindStringSubmatch(tt.request1)
-				// assert.Equal(t, len(match), 4)
-				// assert.Contains(t, tt.fields.s.List()["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value2))
 				fmt.Println(tt.name, tt.fields.s.List())
 			}
 		})

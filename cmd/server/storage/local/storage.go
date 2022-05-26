@@ -58,19 +58,6 @@ func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string)
 
 var _ repositories.Repository = new(Storage)
 
-// func (s *Storage) Get(target, mtype, name string) string {
-// 	s.mu.RLock()
-// 	defer s.mu.RUnlock()
-// 	if _, ok := s.v[metrics.MetricType(mtype)]; ok {
-// 		if _, ok := s.v[metrics.MetricType(mtype)][name]; ok {
-// 			if value, ok := s.v[metrics.MetricType(mtype)][name][target]; ok {
-// 				return fmt.Sprint(value)
-// 			}
-// 		}
-// 	}
-// 	return ""
-// }
-
 func (s *Storage) Ping(context.Context) error {
 	return nil
 }

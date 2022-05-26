@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -53,7 +54,14 @@ func main() {
 	tickerPoll := time.NewTicker(args.PollInterval)
 	tickerReport := time.NewTicker(args.ReportInterval)
 	metricStore := metrics.NewStore([]byte(args.Key))
-	metricStore.AddCustom(new(metrics.PollCount), new(metrics.RandomValue))
+	metricStore.AddCustom(
+		new(metrics.PollCount),
+		new(metrics.RandomValue),
+		new(metrics.TotalMemory),
+		new(metrics.FreeMemory),
+		new(metrics.CPUutilization1),
+	)
+	wg := &sync.WaitGroup{}
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 	for {
@@ -62,16 +70,24 @@ func main() {
 			fmt.Printf("Agent stoped by signal \"%v\"\n", s)
 			return
 		case <-tickerPoll.C:
-			err := metricStore.Scrape()
-			if err != nil {
-				fmt.Println(fmt.Errorf("metric store Scrape() failed: %v", err))
-			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				err := metricStore.Scrape()
+				if err != nil {
+					fmt.Println(fmt.Errorf("metric store Scrape() failed: %v", err))
+				}
+			}()
 		case <-tickerReport.C:
-			baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
-			err := metricStore.Save(&httpClient, &baseURL, args.Format == "json", args.Batch)
-			if err != nil {
-				fmt.Println(fmt.Errorf("metric store Save() failed: %v", err))
-			}
+			wg.Add(1)
+			go func() {
+				wg.Done()
+				baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
+				err := metricStore.Save(&httpClient, &baseURL, args.Format == "json", args.Batch)
+				if err != nil {
+					fmt.Println(fmt.Errorf("metric store Save() failed: %v", err))
+				}
+			}()
 		}
 	}
 }

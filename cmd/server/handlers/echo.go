@@ -142,21 +142,18 @@ func (h *EchoHandler) UpdatesMetricJSON(c echo.Context) error {
 		}
 	}
 
-	// h.Loger().Infof("%+v", &mm)
 	if err := h.s.UpdateMetric(c.RealIP(), mm...); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
 		case repositories.ErrWrongMetricValue:
 			return c.HTML(http.StatusBadRequest, err.Error())
-		// case repositories.ErrWrongMetricType:
 		case repositories.ErrWrongValueInStorage:
 			return c.HTML(http.StatusNotImplemented, err.Error())
 		default:
 			return c.HTML(http.StatusInternalServerError, err.Error())
 		}
 	}
-	// return c.NoContent(http.StatusOK)
 	return c.NoContent(http.StatusOK)
 }
 
@@ -191,7 +188,6 @@ func (h *EchoHandler) UpdateMetricJSON(c echo.Context) error {
 			return c.HTML(http.StatusNotFound, err.Error())
 		case repositories.ErrWrongMetricValue:
 			return c.HTML(http.StatusBadRequest, err.Error())
-		// case repositories.ErrWrongMetricType:
 		case repositories.ErrWrongValueInStorage:
 			return c.HTML(http.StatusNotImplemented, err.Error())
 		default:

@@ -85,7 +85,6 @@ func (s *Metrics) Sign(key []byte) error {
 
 // MarshalJSON реализует интерфейс json.Marshaler.
 func (s *Metrics) MarshalJSON() ([]byte, error) {
-	// logrus.Info(s.MType)
 	switch s.MType {
 	case string(CounterType):
 		aliasValue := struct {
@@ -118,7 +117,6 @@ func (s *Metrics) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	// logrus.Info(raw.MType)
 	switch raw.MType {
 	case "counter":
 		(*s) = Metrics{

@@ -54,6 +54,7 @@ var runtimeMetrics = map[string]string{
 }
 
 func NewStore(key []byte) *Store {
+
 	return &Store{
 		memstat: &runtime.MemStats{},
 		custom:  make(map[string]Metric),
@@ -76,14 +77,17 @@ func (s *Store) MemStats() []string {
 	sort.Strings(res)
 	return res
 }
+
 func (s *Store) All() []string {
 	res := make([]string, 0)
 	for _, v := range s.Custom() {
 		res = append(res, fmt.Sprintf("/update/%s/%s/%s", v.Type(), v.Name(), v))
 	}
+	res = append(res, s.MemStats()...)
 	sort.Strings(res)
-	return append(res, s.MemStats()...)
+	return res
 }
+
 func (s *Store) AllMetrics() []Metrics {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -95,8 +99,10 @@ func (s *Store) AllMetrics() []Metrics {
 	for k := range runtimeMetrics {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
-	r := reflect.ValueOf(s.memstat)
+	rM := reflect.ValueOf(s.memstat)
+
 	for _, k := range keys {
 		if _, ok := s.custom[k]; ok {
 			m := s.custom[k].Metrics()
@@ -109,7 +115,7 @@ func (s *Store) AllMetrics() []Metrics {
 			res = append(res, m)
 			continue
 		}
-		f := r.Elem().FieldByName(k)
+		f := rM.Elem().FieldByName(k)
 		if !f.IsValid() {
 			fmt.Println("Bad Name - ", k)
 			return nil
@@ -136,12 +142,7 @@ func (s *Store) AllMetrics() []Metrics {
 		}
 		res = append(res, m)
 	}
-	// for _, k := range keys {
 
-	// }
-	// for k, v := range runtimeMetrics {
-
-	// }
 	return res
 }
 
@@ -203,7 +204,6 @@ func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool, batch bo
 			return nil
 		}
 		res := s.AllMetrics()
-		// fmt.Println(res[0].Hash)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		if batch {

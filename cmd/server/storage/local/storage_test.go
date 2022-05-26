@@ -48,14 +48,6 @@ func TestStorage_List(t *testing.T) {
 						metrics.Metrics{ID: "RandomValue", MType: string(metrics.GaugeType), Value: metrics.GetFloat64Pointer(11.22)},
 					},
 				},
-				// v: map[metrics.MetricType]map[string]map[string]interface{}{
-				// 	metrics.CounterType: {
-				// 		"PollCount": map[string]interface{}{"1.1.1.1": int(3)},
-				// 	},
-				// 	metrics.GaugeType: {
-				// 		"RandomValue": map[string]interface{}{"1.1.1.2": float64(11.22)},
-				// 	},
-				// },
 			},
 			args: args{
 				targets: nil,
@@ -70,7 +62,6 @@ func TestStorage_List(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Storage{
-				// v: tt.fields.v,
 				metrics: tt.fields.metrics,
 			}
 			if got := s.List(tt.args.targets...); !reflect.DeepEqual(got, tt.want) {
@@ -85,7 +76,6 @@ func TestStorage_List(t *testing.T) {
 
 func TestStorage_ListProm(t *testing.T) {
 	type fields struct {
-		// v       map[metrics.MetricType]map[string]map[string]interface{}
 		metrics map[string][]metrics.Metrics
 	}
 	type args struct {
@@ -189,35 +179,6 @@ func TestStorage_Update(t *testing.T) {
 			storage: newStorage(t),
 			err:     repositories.ErrWrongMetricValue,
 		},
-		// {
-		// 	name: "Неправильная метрика",
-		// 	args: args{
-		// 		target: "1.1.1.1",
-		// 		metric: metrics.Metrics{
-		// 			MType: "",
-		// 			ID:    "",
-		// 			Delta: metrics.GetInt64Pointer(1),
-		// 		},
-		// 		metric: "11111",
-		// 	},
-		// 	err: repositories.ErrWrongMetricType,
-		// },
-		// {
-		// 	name: "Неправильно создано хранилище",
-		// 	args: args{
-		// 		target: "1.1.1.1",
-		// 		metric: metrics.Metrics{
-		// 			MType: "",
-		// 			ID:    "",
-		// 			Delta: metrics.GetInt64Pointer(1),
-		// 		},
-		// 		metric: "gauge",
-		// 		name:   "BlaBla",
-		// 		value:  "123.456",
-		// 	},
-		// 	storage: &Storage{v: map[metrics.MetricType]map[string]map[string]interface{}{}},
-		// 	err:     repositories.ErrWrongValueInStorage,
-		// },
 		{
 			name: "Правильная метрика gauge",
 			args: args{
@@ -231,23 +192,6 @@ func TestStorage_Update(t *testing.T) {
 			storage: newStorage(t),
 			err:     nil,
 		},
-		// {
-		// 	name: "Неправильная метрика gauge",
-		// 	args: args{
-		// 		target: "1.1.1.1",
-		// 		metric: metrics.Metrics{
-		// 			MType: "gauge",
-		// 			ID:    "BlaBla",
-		// 			Value: metrics.GetInt64Pointer(1),
-		// 		},
-		// 		metric: "gauge",
-		// 		name:   "BlaBla",
-		// 		value:  "none",
-		// 	},
-		// 	storage: NewStorage(false, nil),
-		// 	// не тестируется, так как отсекается регулярным выражением
-		// 	err: repositories.ErrWrongMetricValue,
-		// },
 		{
 			name: "Правильная метрика couter",
 			args: args{
@@ -261,22 +205,6 @@ func TestStorage_Update(t *testing.T) {
 			storage: newStorage(t),
 			err:     nil,
 		},
-		// {
-		// 	name: "Неправильная метрика couter",
-		// 	args: args{
-		// 		target: "1.1.1.1",
-		// 		metric: metrics.Metrics{
-		// 			MType: "",
-		// 			ID:    "",
-		// 			Delta: metrics.GetInt64Pointer(1),
-		// 		},
-		// 		metric: "counter",
-		// 		name:   "BlaBla",
-		// 		value:  "123.123",
-		// 	},
-		// 	storage: NewStorage(false, nil),
-		// 	err:     repositories.ErrWrongMetricValue,
-		// },
 		{
 			name: "Правильная запись couter в хранилище",
 			args: args{
@@ -288,9 +216,6 @@ func TestStorage_Update(t *testing.T) {
 				},
 			},
 			storage: &Storage{
-				// v: map[metrics.MetricType]map[string]map[string]interface{}{
-				// 	metrics.CounterType: {"BlaBla": map[string]interface{}{"1.1.1.1": 10}},
-				// },
 				metrics: map[string][]metrics.Metrics{
 					"1.1.1.1": {
 						{ID: "BlaBla", MType: string(metrics.CounterType), Delta: metrics.GetInt64Pointer(10)},
@@ -299,24 +224,10 @@ func TestStorage_Update(t *testing.T) {
 			},
 			err: nil,
 		},
-		// {
-		// 	name: "Неправильная запись gauge в хранилище",
-		// 	args: args{
-		// 		target: "1.1.1.1",
-		// 		metric: "/gauge/BlaBla/123",
-		// 	},
-		// 	storage: &Storage{
-		// 		v: map[metrics.MetricType]map[string]map[string]interface{}{
-		// 			metrics.GaugeType: {"BlaBla": map[string]interface{}{"1.1.1.1": "ggg"}},
-		// 		},
-		// 	},
-		// 	err: repositories.ErrWrongMetricType,
-		// },
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.storage.UpdateMetric(tt.args.target, tt.args.metric)
-			// err := tt.storage.Update(tt.args.target, tt.args.metric, tt.args.name, tt.args.value)
 			assert.Equal(t, err, tt.err)
 		})
 	}
