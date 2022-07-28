@@ -1,4 +1,4 @@
-package handlers
+package web
 
 import (
 	"bytes"
@@ -53,10 +53,10 @@ func TestEchoHandler_Get(t *testing.T) {
 				// require.NoError(t, s.Update(tt.target, m[2], m[3], tt.value))
 				require.NoError(t, s.UpdateMetric(tt.target, metrics.Metrics{MType: m[2], ID: m[3], Delta: metrics.GetInt64Pointer(tt.value["counter"].(int64)), Value: metrics.GetFloat64Pointer(tt.value["gauge"].(float64))}))
 			}
-			handler := NewEchoHandler(s, nil)
+			handler := NewEchoServer(s)
 			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
 			w := httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
+			handler.e.ServeHTTP(w, handler.e.NewContext(request, w).Request())
 			result := w.Result()
 
 			assert.Equal(t, tt.status, result.StatusCode)
@@ -199,20 +199,6 @@ func TestEchoHandler_Update(t *testing.T) {
 				value2:     "",
 			},
 		},
-		// {
-		// 	name:     "Неправильный Content-Type",
-		// 	fields:   fields{s: newStorage(t)},
-		// 	content:  "",
-		// 	method:   http.MethodPost,
-		// 	request1: "/update/counter/PollCount/2",
-		// 	request2: "/update/counter/PollCount/3",
-		// 	want: want{
-		// 		statusCode: http.StatusBadRequest,
-		// 		body:       "Only text/plain content are allowed!\n",
-		// 		value1:     nil,
-		// 		value2:     nil,
-		// 	},
-		// },
 		{
 			name:     "Неправильный http метод",
 			fields:   fields{s: newStorage(t)},
@@ -245,10 +231,10 @@ func TestEchoHandler_Update(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewEchoHandler(tt.fields.s, nil)
+			handler := NewEchoServer(tt.fields.s)
 			request := httptest.NewRequest(tt.method, tt.request1, nil)
 			w := httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
+			handler.e.ServeHTTP(w, handler.e.NewContext(request, w).Request())
 			result := w.Result()
 
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
@@ -271,7 +257,7 @@ func TestEchoHandler_Update(t *testing.T) {
 			request = httptest.NewRequest(tt.method, tt.request2, nil)
 			request.Header.Add("Content-Type", tt.content)
 			w = httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, request)
+			handler.e.ServeHTTP(w, request)
 
 			result = w.Result()
 
@@ -357,14 +343,13 @@ func TestEchoHandlerJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewEchoHandler(tt.fields.s, nil)
-			handler.SetLoger(loger)
+			handler := NewEchoServer(tt.fields.s, WithLoger(loger))
 
 			buf := bytes.NewBufferString(tt.body1)
 			request := httptest.NewRequest(tt.method, tt.request1, buf)
 			request.Header.Add("Content-Type", tt.content)
 			w := httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
+			handler.e.ServeHTTP(w, handler.e.NewContext(request, w).Request())
 			result := w.Result()
 
 			assert.Equal(t, tt.want.statusCode1, result.StatusCode)
@@ -382,7 +367,7 @@ func TestEchoHandlerJSON(t *testing.T) {
 			request = httptest.NewRequest(tt.method, tt.request2, buf)
 			request.Header.Add("Content-Type", tt.content)
 			w = httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, request)
+			handler.e.ServeHTTP(w, request)
 
 			result = w.Result()
 

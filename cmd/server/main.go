@@ -12,12 +12,10 @@ import (
 	lokihook "github.com/akkuman/logrus-loki-hook"
 	"github.com/alecthomas/kong"
 	"github.com/caarlos0/env/v6"
-	"github.com/gopherlearning/track-devops/cmd/server/handlers"
 	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
 	"github.com/gopherlearning/track-devops/cmd/server/storage/postgres"
 	"github.com/gopherlearning/track-devops/cmd/server/web"
 	"github.com/gopherlearning/track-devops/internal/repositories"
-
 	"github.com/sirupsen/logrus"
 )
 
@@ -28,6 +26,7 @@ type Args struct {
 	Restore       bool          `short:"r" help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true"`
 	DatabaseDSN   string        `short:"d" help:"трока с адресом подключения к БД" env:"DATABASE_DSN"`
 	Key           string        `short:"k" help:"Ключ подписи" env:"KEY"`
+	UsePprof      bool          `help:"Использовать Pprof" env:"PPROF"`
 }
 
 var args Args
@@ -85,9 +84,7 @@ func main() {
 			return
 		}
 	}
-	h := handlers.NewEchoHandler(store, []byte(args.Key))
-	h.SetLoger(logrus.StandardLogger())
-	s := web.NewEchoServer(h)
+	s := web.NewEchoServer(store, web.WithKey([]byte(args.Key)), web.WithPprof(args.UsePprof), web.WithLoger(logrus.StandardLogger()))
 
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)

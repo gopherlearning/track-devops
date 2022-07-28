@@ -1,6 +1,6 @@
 package web
 
-type Web interface {
-	Start(listen string) error
-	Stop() error
-}
+// type Web interface {
+// 	Start(listen string) error
+// 	Stop() error
+// }
