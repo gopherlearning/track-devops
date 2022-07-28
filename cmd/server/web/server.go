@@ -64,18 +64,18 @@ func NewEchoServer(s repositories.Repository, opts ...EchoServerOptionFunc) *Ech
 	}
 	return serv
 }
-func (s *EchoServer) Start(listen string) error {
-	s.e.Server.Addr = listen
-	err := s.e.Server.ListenAndServe()
+func (h *EchoServer) Start(listen string) error {
+	h.e.Server.Addr = listen
+	err := h.e.Server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
 	return err
 }
 
-func (s *EchoServer) Stop() error {
+func (h *EchoServer) Stop() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	return s.e.Shutdown(ctx)
+	return h.e.Shutdown(ctx)
 }

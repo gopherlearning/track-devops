@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"sync"
 	"time"
@@ -66,25 +65,15 @@ func (s *Storage) GetConn(ctx context.Context) *pgxpool.Pool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.db == nil || s.db.Ping(ctx) != nil {
-		attempt := 0
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
-
 		for range ticker.C {
-			if attempt >= s.maxConnectAttempts {
-				s.loger.Errorf("connection failed after %d attempt\n", attempt)
-			}
-			attempt++
-
 			s.loger.Info("reconnecting...")
-			s.loger.Info(1)
-
 			s.db, err = s.reconnect(ctx)
-			if err == nil {
-				return s.db
+			if err != nil {
+				continue
 			}
-
-			s.loger.Errorf("connection was lost. Error: %s. Waiting for 5 sec...\n", err)
+			return s.db
 		}
 		return nil
 	}
@@ -93,6 +82,7 @@ func (s *Storage) GetConn(ctx context.Context) *pgxpool.Pool {
 
 // Get(target, metric, name string) string
 func (s *Storage) GetMetric(target string, mType string, name string) *metrics.Metrics {
+
 	var data []metrics.Metrics
 	err := s.GetConn(context.Background()).QueryRow(context.Background(), `select data::jsonb from metrics where target = $1`, target).Scan(&data)
 	if err != nil {
@@ -156,64 +146,107 @@ func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
 	return nil
 }
 
-func (s *Storage) Metrics() map[string][]metrics.Metrics {
+func (s *Storage) Metrics() (map[string][]metrics.Metrics, error) {
 	res := make(map[string][]metrics.Metrics)
-	rows, err := s.GetConn(context.Background()).Query(context.Background(), `select target, data::jsonb from metrics`)
+	rows, err := s.GetConn(context.Background()).Query(context.Background(), `select target,id,hash,mtype,IFNULL( mdelta, 0 ) ,IFNULL( mvalue, 0 ) from metrics`)
 	if err != nil {
-		s.loger.Errorf("queryRow failed: %v", err)
-		os.Exit(1)
+		err = fmt.Errorf("queryRow failed: %v", err)
+		s.loger.Error(err)
+		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var target string
-		var data []metrics.Metrics
-		err := rows.Scan(&target, &data)
+		var id string
+		var hash string
+		var mtype string
+		var mdelta int64
+		var mvalue float64
+		err := rows.Scan(&target, &id, &hash, &mtype, &mdelta, &mvalue)
 		if err != nil {
 			s.loger.Error(err)
-			return nil
+			return nil, err
 		}
-		res[target] = data
+		if _, ok := res[target]; !ok {
+			res[target] = make([]metrics.Metrics, 0)
+		}
+		switch mtype {
+		case string(metrics.CounterType):
+			res[target] = append(res[target], metrics.Metrics{
+				ID:    id,
+				MType: mtype,
+				Delta: &mdelta,
+				Hash:  hash,
+			})
+		case string(metrics.GaugeType):
+			res[target] = append(res[target], metrics.Metrics{
+				ID:    id,
+				MType: mtype,
+				Value: &mvalue,
+				Hash:  hash,
+			})
+
+		}
 	}
 	if rows.Err() != nil {
 		s.loger.Error(err)
-		return nil
+		return nil, err
 	}
-	return res
+	return res, nil
 }
 
-func (s *Storage) List(targets ...string) map[string][]string {
-
+func (s *Storage) List() (map[string][]string, error) {
 	res := make(map[string][]string)
-	rows, err := s.GetConn(context.Background()).Query(context.Background(), `select target, data::jsonb from metrics`)
+	rows, err := s.GetConn(context.Background()).Query(context.Background(), `select target,id,hash,mtype,IFNULL( mdelta, 0 ) ,IFNULL( mvalue, 0 ) from metrics`)
 	if err != nil {
-		s.loger.Errorf("QueryRow failed: %v", err)
-		os.Exit(1)
+		err = fmt.Errorf("queryRow failed: %v", err)
+		s.loger.Error(err)
+		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var target string
-		var data []metrics.Metrics
-		err := rows.Scan(&target, &data)
+		var id string
+		var hash string
+		var mtype string
+		var mdelta int64
+		var mvalue float64
+		err := rows.Scan(&target, &id, &hash, &mtype, &mdelta, &mvalue)
 		if err != nil {
 			s.loger.Error(err)
-			return nil
+			return nil, err
 		}
-		for m := range data {
-			if _, ok := res[target]; !ok {
-				res[target] = make([]string, 0)
+		if _, ok := res[target]; !ok {
+			res[target] = make([]string, 0)
+		}
+		var m metrics.Metrics
+		switch mtype {
+		case string(metrics.CounterType):
+			m = metrics.Metrics{
+				ID:    id,
+				MType: mtype,
+				Delta: &mdelta,
+				Hash:  hash,
 			}
-			res[target] = append(res[target], fmt.Sprint(data[m].StringFull()))
+		case string(metrics.GaugeType):
+			m = metrics.Metrics{
+				ID:    id,
+				MType: mtype,
+				Value: &mvalue,
+				Hash:  hash,
+			}
 		}
-		for k, v := range res {
-			sort.Strings(v)
-			res[k] = v
-		}
+		res[target] = append(res[target], m.StringFull())
 	}
 	if rows.Err() != nil {
 		s.loger.Error(err)
-		return nil
+		return nil, err
 	}
-	return res
+	for k, v := range res {
+		sort.Strings(v)
+		res[k] = v
+	}
+	return res, nil
 }
 
 func (s *Storage) ListProm(targets ...string) []byte {

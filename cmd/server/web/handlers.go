@@ -12,45 +12,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Handler ...
-// type EchoHandler struct {
-// 	// s     repositories.Repository
-// 	// e     *echo.Echo
-// 	// loger logrus.FieldLogger
-// 	// key   []byte
-// }
-
-// NewHandler создаёт новый экземпляр обработчика запросов, привязанный к хранилищу
-// func NewEchoHandler(s repositories.Repository, opts ...EchoServerOptionFunc) *EchoServer {
-// e := echo.New()
-// // e.Use(middleware.Logger())
-// e.Use(middleware.Recover())
-// h := &EchoHandler{s: s, e: e}
-// h.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
-// 	Level: 5,
-// }))
-// h.e.POST("/update/", h.UpdateMetricJSON)
-// h.e.POST("/updates/", h.UpdatesMetricJSON)
-// h.e.POST("/value/", h.GetMetricJSON)
-// h.e.POST("/update/:type/:name/:value", h.UpdateMetric)
-// h.e.GET("/value/:type/:name", h.GetMetric)
-// h.e.GET("/ping", h.Ping)
-// h.e.GET("/", h.ListMetrics)
-// for _, opt := range opts {
-// 	opt(h)
-// }
-// return h
-// }
-
-// Echo ...
-// func (h *EchoServer) Echo() *echo.Echo { return h.e }
-
-// Loger ...
-// func (h *EchoServer) Loger() logrus.FieldLogger { return h.loger }
-
-// SetLoger ...
-// func (h *EchoServer) SetLoger(l logrus.FieldLogger) { h.loger = l }
-
 // GetMetric ...
 func (h *EchoServer) GetMetric(c echo.Context) error {
 	if v := h.s.GetMetric(c.RealIP(), c.Param("type"), c.Param("name")); v != nil {
