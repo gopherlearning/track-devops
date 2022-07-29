@@ -63,7 +63,8 @@ func (s *Storage) Ping(context.Context) error {
 }
 
 func (s *Storage) Save() error {
-	data, err := json.MarshalIndent(s.Metrics(), "", "  ")
+	m, _ := s.Metrics("")
+	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -77,7 +78,7 @@ func (s *Storage) Save() error {
 	}
 	return nil
 }
-func (s *Storage) Metrics() map[string][]metrics.Metrics {
+func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	res := make(map[string][]metrics.Metrics)
@@ -89,23 +90,23 @@ func (s *Storage) Metrics() map[string][]metrics.Metrics {
 			res[target] = append(res[target], s.metrics[target][k])
 		}
 	}
-	return res
+	return res, nil
 }
-func (s *Storage) GetMetric(target, mtype, name string) *metrics.Metrics {
+func (s *Storage) GetMetric(target, mtype, name string) (*metrics.Metrics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if _, ok := s.metrics[target]; ok {
 		for i := range s.metrics[target] {
 			if s.metrics[target][i].MType == mtype && s.metrics[target][i].ID == name {
 				res := s.metrics[target][i]
-				return &res
+				return &res, nil
 			}
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
+func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, m := range mm {
@@ -141,7 +142,7 @@ func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
 	return nil
 }
 
-func (s *Storage) List(targets ...string) map[string][]string {
+func (s *Storage) List() (map[string][]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	res := make(map[string][]string)
@@ -157,9 +158,9 @@ func (s *Storage) List(targets ...string) map[string][]string {
 			res[k] = v
 		}
 	}
-	return res
+	return res, nil
 }
 
-func (s *Storage) ListProm(targets ...string) []byte {
+func (s *Storage) ListProm(targets ...string) ([]byte, error) {
 	panic("not implemented") // TODO: Implement
 }

@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 
 // GetMetric ...
 func (h *EchoServer) GetMetric(c echo.Context) error {
-	if v := h.s.GetMetric(c.RealIP(), c.Param("type"), c.Param("name")); v != nil {
+	if v, _ := h.s.GetMetric(c.RealIP(), c.Param("type"), c.Param("name")); v != nil {
 		return c.HTML(http.StatusOK, v.String())
 	}
 	return c.NoContent(http.StatusNotFound)
@@ -31,7 +32,11 @@ func (h *EchoServer) Ping(c echo.Context) error {
 func (h *EchoServer) ListMetrics(c echo.Context) error {
 	b := make([]byte, 0)
 	buf := bytes.NewBuffer(b)
-	for target, values := range h.s.List() {
+	list, err := h.s.List()
+	if err != nil {
+		return err
+	}
+	for target, values := range list {
 		fmt.Fprintf(buf, `<b>Target "%s":</b></br>`, target)
 		for _, v := range values {
 			fmt.Fprintf(buf, "  %s<br>", v)
@@ -62,7 +67,7 @@ func (h *EchoServer) UpdateMetric(c echo.Context) error {
 	default:
 		return c.HTML(http.StatusNotImplemented, repositories.ErrWrongMetricType.Error())
 	}
-	if err := h.s.UpdateMetric(c.RealIP(), m); err != nil {
+	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -103,7 +108,7 @@ func (h *EchoServer) UpdatesMetricJSON(c echo.Context) error {
 		}
 	}
 
-	if err := h.s.UpdateMetric(c.RealIP(), mm...); err != nil {
+	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), mm...); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -142,7 +147,7 @@ func (h *EchoServer) UpdateMetricJSON(c echo.Context) error {
 		}
 	}
 
-	if err := h.s.UpdateMetric(c.RealIP(), m); err != nil {
+	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -174,7 +179,7 @@ func (h *EchoServer) GetMetricJSON(c echo.Context) error {
 		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
-	if v := h.s.GetMetric(c.RealIP(), m.MType, m.ID); v != nil {
+	if v, _ := h.s.GetMetric(c.RealIP(), m.MType, m.ID); v != nil {
 
 		if len(h.key) != 0 {
 			err = v.Sign(h.key)

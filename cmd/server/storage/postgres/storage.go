@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -81,74 +80,121 @@ func (s *Storage) GetConn(ctx context.Context) *pgxpool.Pool {
 }
 
 // Get(target, metric, name string) string
-func (s *Storage) GetMetric(target string, mType string, name string) *metrics.Metrics {
+func (s *Storage) GetMetric(target string, mType string, name string) (*metrics.Metrics, error) {
 
-	var data []metrics.Metrics
-	err := s.GetConn(context.Background()).QueryRow(context.Background(), `select data::jsonb from metrics where target = $1`, target).Scan(&data)
+	var id string
+	var hash string
+	var mtype string
+	var mdelta int64
+	var mvalue float64
+	err := s.GetConn(context.Background()).QueryRow(context.Background(), `select id,hash,mtype,COALESCE(mdelta, 0),COALESCE( mvalue, 0 )  from metrics where target = $1`, target).Scan(&id, &hash, &mtype, &mdelta, &mvalue)
 	if err != nil {
 		s.loger.Error(err)
-		return nil
+		return nil, err
 	}
-	var res *metrics.Metrics
-	for i := range data {
-		if data[i].ID != name || data[i].MType != mType {
-			continue
-		}
-		res = &data[i]
+	switch mtype {
+	case string(metrics.CounterType):
+		return &metrics.Metrics{
+			ID:    id,
+			MType: mtype,
+			Delta: &mdelta,
+			Hash:  hash,
+		}, nil
+	case string(metrics.GaugeType):
+		return &metrics.Metrics{
+			ID:    id,
+			MType: mtype,
+			Value: &mvalue,
+			Hash:  hash,
+		}, nil
+	default:
+		return nil, metrics.ErrNoSuchMetricType
 	}
-	if res == nil {
-		s.loger.Error("no such metric ", mType, " - ", name)
-	}
-	return res
 }
 
 // Update(target, metric, name, value string) error
-func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
-	var data = make([]metrics.Metrics, 0)
-	err := s.GetConn(context.Background()).QueryRow(context.Background(), `select data::jsonb from metrics where target = $1`, target).Scan(&data)
-	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
+func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) error {
+	mmOld, err := s.Metrics(target)
+	if err != nil && err != pgx.ErrNoRows {
+		return err
+	}
+
+	for j, m := range mmOld[target] {
+		for i := range mm {
+			if mm[i].ID != m.ID || mm[i].MType != m.MType {
+				if i == len(mm)-1 {
+					mmOld[target] = append(mmOld[target], mm[i])
+				}
+				continue
+			}
+			res := mm[i]
+			if m.MType == string(metrics.CounterType) {
+				m := *res.Delta + *m.Delta
+				res.Delta = &m
+			}
+			mmOld[target][j] = res
 		}
-		_, err = s.GetConn(context.Background()).Exec(context.Background(), `INSERT INTO metrics (target, data) VALUES($1, $2)`, target, data)
+	}
+	tx, err := s.GetConn(ctx).Begin(ctx)
+	if err != nil {
+		return err
+	}
+	for i := range mm {
+		_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (target,id) DO UPDATE SET mdelta = $5, mvalue = $6`, target, mm[i].ID, mm[i].Hash, mm[i].MType, mm[i].Delta, mm[i].Value)
 		if err != nil {
 			return err
 		}
 	}
-	if len(data) == 0 {
-		data = mm
-	} else {
-		for _, m := range mm {
-			for i := range data {
-				if data[i].ID != m.ID || data[i].MType != m.MType {
-					if i == len(data)-1 {
-						data = append(data, m)
-					}
-					continue
-				}
-				res := data[i]
-				switch m.MType {
-				case string(metrics.CounterType):
-					m := *res.Delta + *m.Delta
-					res.Delta = &m
-				case string(metrics.GaugeType):
-					res.Value = m.Value
-				}
-				data[i] = res
-				break
-			}
-		}
-	}
-	_, err = s.GetConn(context.Background()).Exec(context.Background(), `UPDATE metrics SET data = $1 WHERE target = $2`, data, target)
-	if err != nil {
-		return err
-	}
-	return nil
+	return tx.Commit(ctx)
+	// var data = make([]metrics.Metrics, 0)
+	// err := s.GetConn(context.Background()).QueryRow(context.Background(), `select data::jsonb from metrics where target = $1`, target).Scan(&data)
+	// if err != nil {
+	// 	if !errors.Is(err, pgx.ErrNoRows) {
+	// 		return err
+	// 	}
+	// 	_, err = s.GetConn(context.Background()).Exec(context.Background(), `INSERT INTO metrics (target, data) VALUES($1, $2)`, target, data)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
+	// if len(data) == 0 {
+	// 	data = mm
+	// } else {
+	// 	for _, m := range mm {
+	// 		for i := range data {
+	// 			if data[i].ID != m.ID || data[i].MType != m.MType {
+	// 				if i == len(data)-1 {
+	// 					data = append(data, m)
+	// 				}
+	// 				continue
+	// 			}
+	// 			res := data[i]
+	// 			switch m.MType {
+	// 			case string(metrics.CounterType):
+	// 				m := *res.Delta + *m.Delta
+	// 				res.Delta = &m
+	// 			case string(metrics.GaugeType):
+	// 				res.Value = m.Value
+	// 			}
+	// 			data[i] = res
+	// 			break
+	// 		}
+	// 	}
+	// }
+	// _, err = s.GetConn(context.Background()).Exec(context.Background(), `UPDATE metrics SET data = $1 WHERE target = $2`, data, target)
+	// if err != nil {
+	// 	return err
+	// }
+	// return nil
 }
 
-func (s *Storage) Metrics() (map[string][]metrics.Metrics, error) {
+func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {
 	res := make(map[string][]metrics.Metrics)
-	rows, err := s.GetConn(context.Background()).Query(context.Background(), `select target,id,hash,mtype,IFNULL( mdelta, 0 ) ,IFNULL( mvalue, 0 ) from metrics`)
+	SQL := `select target,id,hash,mtype,COALESCE(mdelta, 0),COALESCE( mvalue, 0 ) from metrics`
+	if len(target) != 0 {
+		SQL = fmt.Sprintf(`%s where target = '%s'`, SQL, target)
+	}
+	rows, err := s.GetConn(context.Background()).Query(context.Background(), SQL)
 	if err != nil {
 		err = fmt.Errorf("queryRow failed: %v", err)
 		s.loger.Error(err)
@@ -196,51 +242,17 @@ func (s *Storage) Metrics() (map[string][]metrics.Metrics, error) {
 }
 
 func (s *Storage) List() (map[string][]string, error) {
-	res := make(map[string][]string)
-	rows, err := s.GetConn(context.Background()).Query(context.Background(), `select target,id,hash,mtype,IFNULL( mdelta, 0 ) ,IFNULL( mvalue, 0 ) from metrics`)
+	mm, err := s.Metrics("")
 	if err != nil {
-		err = fmt.Errorf("queryRow failed: %v", err)
 		s.loger.Error(err)
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var target string
-		var id string
-		var hash string
-		var mtype string
-		var mdelta int64
-		var mvalue float64
-		err := rows.Scan(&target, &id, &hash, &mtype, &mdelta, &mvalue)
-		if err != nil {
-			s.loger.Error(err)
-			return nil, err
+	res := make(map[string][]string, len(mm))
+	for k := range mm {
+		res[k] = make([]string, len(mm[k]))
+		for i := range mm[k] {
+			res[k][i] = mm[k][i].StringFull()
 		}
-		if _, ok := res[target]; !ok {
-			res[target] = make([]string, 0)
-		}
-		var m metrics.Metrics
-		switch mtype {
-		case string(metrics.CounterType):
-			m = metrics.Metrics{
-				ID:    id,
-				MType: mtype,
-				Delta: &mdelta,
-				Hash:  hash,
-			}
-		case string(metrics.GaugeType):
-			m = metrics.Metrics{
-				ID:    id,
-				MType: mtype,
-				Value: &mvalue,
-				Hash:  hash,
-			}
-		}
-		res[target] = append(res[target], m.StringFull())
-	}
-	if rows.Err() != nil {
-		s.loger.Error(err)
-		return nil, err
 	}
 	for k, v := range res {
 		sort.Strings(v)
@@ -249,7 +261,7 @@ func (s *Storage) List() (map[string][]string, error) {
 	return res, nil
 }
 
-func (s *Storage) ListProm(targets ...string) []byte {
+func (s *Storage) ListProm(targets ...string) ([]byte, error) {
 	panic("not implemented") // TODO: Implement
 }
 

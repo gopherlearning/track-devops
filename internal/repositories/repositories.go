@@ -7,10 +7,10 @@ import (
 )
 
 type Repository interface {
-	GetMetric(target, mType, name string) *metrics.Metrics
+	GetMetric(target, mType, name string) (*metrics.Metrics, error)
 	Ping(context.Context) error
-	UpdateMetric(target string, mm ...metrics.Metrics) error
-	Metrics() map[string][]metrics.Metrics
-	List(targets ...string) map[string][]string
-	ListProm(targets ...string) []byte
+	UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) error
+	Metrics(target string) (map[string][]metrics.Metrics, error)
+	List() (map[string][]string, error)
+	ListProm(targets ...string) ([]byte, error)
 }

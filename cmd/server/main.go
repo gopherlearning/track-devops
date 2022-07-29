@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	lokihook "github.com/akkuman/logrus-loki-hook"
 	"github.com/alecthomas/kong"
 	"github.com/caarlos0/env/v6"
 	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
@@ -47,19 +46,6 @@ func init() {
 			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
 		}
 	}
-	lokiHookConfig := &lokihook.Config{
-		URL: "https://logsremoteloki:efnd9DG510YnZQUjMlgMYVIN@loki.duduh.ru/api/prom/push",
-		Labels: map[string]string{
-			"app": "track-devops",
-		},
-	}
-	hook, err := lokihook.NewHook(lokiHookConfig)
-	if err != nil {
-		logrus.Error(err)
-	} else {
-		logrus.AddHook(hook)
-	}
-
 }
 
 func main() {
@@ -76,6 +62,7 @@ func main() {
 		if err != nil {
 			logrus.Error(err)
 			return
+
 		}
 	} else {
 		store, err = local.NewStorage(args.Restore, &args.StoreInterval, args.StoreFile)
@@ -96,7 +83,12 @@ func main() {
 			<-ticker.C
 
 			fmt.Println("==============================")
-			for target, values := range store.List() {
+			list, err := store.List()
+			if err != nil {
+				logrus.Error(err)
+				continue
+			}
+			for target, values := range list {
 				fmt.Printf(`Target "%s":%s`, target, "\n")
 				for _, v := range values {
 					fmt.Printf("\t%s\n", v)

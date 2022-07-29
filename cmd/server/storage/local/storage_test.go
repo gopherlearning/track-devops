@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestStorage_List(t *testing.T) {
 		metrics map[string][]metrics.Metrics
 	}
 	type args struct {
-		targets []string
+		target string
 	}
 	tests := []struct {
 		name   string
@@ -33,7 +34,7 @@ func TestStorage_List(t *testing.T) {
 			name:   "Пустой Storage",
 			fields: fields{metrics: newStorage(t).metrics},
 			args: args{
-				targets: nil,
+				target: "",
 			},
 			want: make(map[string][]string),
 		},
@@ -50,7 +51,7 @@ func TestStorage_List(t *testing.T) {
 				},
 			},
 			args: args{
-				targets: nil,
+				target: "",
 			},
 			want: map[string][]string{
 				"1.1.1.1": {"counter - PollCount - 3"},
@@ -64,7 +65,7 @@ func TestStorage_List(t *testing.T) {
 			s := &Storage{
 				metrics: tt.fields.metrics,
 			}
-			if got := s.List(tt.args.targets...); !reflect.DeepEqual(got, tt.want) {
+			if got, _ := s.List(); !reflect.DeepEqual(got, tt.want) {
 
 				t.Errorf("Storage.List() = %v, want %v", got, tt.want)
 			}
@@ -227,7 +228,7 @@ func TestStorage_Update(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.storage.UpdateMetric(tt.args.target, tt.args.metric)
+			err := tt.storage.UpdateMetric(context.Background(), tt.args.target, tt.args.metric)
 			assert.Equal(t, err, tt.err)
 		})
 	}
