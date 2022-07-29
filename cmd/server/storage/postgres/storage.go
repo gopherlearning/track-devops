@@ -110,6 +110,7 @@ func (s *Storage) GetMetric(target string, mType string, name string) (*metrics.
 	default:
 		return nil, metrics.ErrNoSuchMetricType
 	}
+
 }
 
 // Update(target, metric, name, value string) error
@@ -120,6 +121,10 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 	}
 	s.loger.Infof("%+v", old[target])
 	for _, n := range mm {
+		if len(old[target]) == 0 {
+			old[target] = append(old[target], n)
+			continue
+		}
 		l := len(old[target]) - 1
 		for i, o := range old[target] {
 			if n.ID != o.ID || n.MType != o.MType {
