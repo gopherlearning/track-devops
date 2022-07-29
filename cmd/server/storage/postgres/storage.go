@@ -134,7 +134,15 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			}
 		}
 	}()
-	s.loger.Infof("%+v - %+v", old[target], mm)
+	var o string
+	for _, v := range old[target] {
+		o = fmt.Sprintf("%s, %s", o, v.ID)
+	}
+	var n string
+	for _, v := range mm {
+		n = fmt.Sprintf("%s, %s", n, v.ID)
+	}
+	s.loger.Infof("%+v - %+v", o, n)
 	forAdd := make([]metrics.Metrics, 0)
 	if len(old[target]) == 0 {
 		forAdd = append(forAdd, mm...)
