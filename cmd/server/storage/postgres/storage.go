@@ -81,29 +81,26 @@ func (s *Storage) GetConn(ctx context.Context) *pgxpool.Pool {
 
 // Get(target, metric, name string) string
 func (s *Storage) GetMetric(target string, mType string, name string) (*metrics.Metrics, error) {
-
-	var id string
 	var hash string
-	var mtype string
 	var mdelta int64
 	var mvalue float64
-	err := s.GetConn(context.Background()).QueryRow(context.Background(), `select id,hash,mtype,COALESCE(mdelta, 0),COALESCE( mvalue, 0 )  from metrics where target = $1`, target).Scan(&id, &hash, &mtype, &mdelta, &mvalue)
+	err := s.GetConn(context.Background()).QueryRow(context.Background(), `select hash,COALESCE(mdelta, 0),COALESCE( mvalue, 0 ) from metrics where target = $1 AND id = $2 AND mtype = $3`, target, name, mType).Scan(&hash, &mdelta, &mvalue)
 	if err != nil {
 		s.loger.Error(err)
 		return nil, err
 	}
-	switch mtype {
+	switch mType {
 	case string(metrics.CounterType):
 		return &metrics.Metrics{
-			ID:    id,
-			MType: mtype,
+			ID:    name,
+			MType: mType,
 			Delta: &mdelta,
 			Hash:  hash,
 		}, nil
 	case string(metrics.GaugeType):
 		return &metrics.Metrics{
-			ID:    id,
-			MType: mtype,
+			ID:    name,
+			MType: mType,
 			Value: &mvalue,
 			Hash:  hash,
 		}, nil
@@ -114,78 +111,39 @@ func (s *Storage) GetMetric(target string, mType string, name string) (*metrics.
 
 // Update(target, metric, name, value string) error
 func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) error {
-	mmOld, err := s.Metrics(target)
+	old, err := s.Metrics(target)
 	if err != nil && err != pgx.ErrNoRows {
 		return err
 	}
-
-	for j, m := range mmOld[target] {
-		for i := range mm {
-			if mm[i].ID != m.ID || mm[i].MType != m.MType {
-				if i == len(mm)-1 {
-					mmOld[target] = append(mmOld[target], mm[i])
+	s.loger.Infof("%+v", old[target])
+	for _, n := range mm {
+		l := len(old[target]) - 1
+		for i, o := range old[target] {
+			if n.ID != o.ID || n.MType != o.MType {
+				if i == l {
+					old[target] = append(old[target], n)
 				}
 				continue
 			}
-			res := mm[i]
-			if m.MType == string(metrics.CounterType) {
-				m := *res.Delta + *m.Delta
-				res.Delta = &m
+			if n.MType == string(metrics.CounterType) {
+				m := *o.Delta + *n.Delta
+				n.Delta = &m
 			}
-			mmOld[target][j] = res
+			old[target][i] = n
+			break
 		}
 	}
 	tx, err := s.GetConn(ctx).Begin(ctx)
 	if err != nil {
 		return err
 	}
-	for i := range mm {
-		_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (target,id) DO UPDATE SET mdelta = $5, mvalue = $6`, target, mm[i].ID, mm[i].Hash, mm[i].MType, mm[i].Delta, mm[i].Value)
+	for _, v := range old[target] {
+		_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (target,id) DO UPDATE SET mdelta = $5, mvalue = $6`, target, v.ID, v.Hash, v.MType, v.Delta, v.Value)
 		if err != nil {
 			return err
 		}
 	}
 	return tx.Commit(ctx)
-	// var data = make([]metrics.Metrics, 0)
-	// err := s.GetConn(context.Background()).QueryRow(context.Background(), `select data::jsonb from metrics where target = $1`, target).Scan(&data)
-	// if err != nil {
-	// 	if !errors.Is(err, pgx.ErrNoRows) {
-	// 		return err
-	// 	}
-	// 	_, err = s.GetConn(context.Background()).Exec(context.Background(), `INSERT INTO metrics (target, data) VALUES($1, $2)`, target, data)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-	// if len(data) == 0 {
-	// 	data = mm
-	// } else {
-	// 	for _, m := range mm {
-	// 		for i := range data {
-	// 			if data[i].ID != m.ID || data[i].MType != m.MType {
-	// 				if i == len(data)-1 {
-	// 					data = append(data, m)
-	// 				}
-	// 				continue
-	// 			}
-	// 			res := data[i]
-	// 			switch m.MType {
-	// 			case string(metrics.CounterType):
-	// 				m := *res.Delta + *m.Delta
-	// 				res.Delta = &m
-	// 			case string(metrics.GaugeType):
-	// 				res.Value = m.Value
-	// 			}
-	// 			data[i] = res
-	// 			break
-	// 		}
-	// 	}
-	// }
-	// _, err = s.GetConn(context.Background()).Exec(context.Background(), `UPDATE metrics SET data = $1 WHERE target = $2`, data, target)
-	// if err != nil {
-	// 	return err
-	// }
-	// return nil
 }
 
 func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {
