@@ -7,7 +7,7 @@ CREATE TABLE metrics (
     	(mtype = 'counter' AND mdelta IS NOT NULL)
       OR (mtype = 'gauge' AND mvalue IS NOT NULL)
   ),
-  mvalue REAL CHECK (
+  mvalue DOUBLE PRECISION CHECK (
     	(mtype = 'counter' AND mdelta IS NOT NULL)
       OR (mtype = 'gauge' AND mvalue IS NOT NULL)
   ),
