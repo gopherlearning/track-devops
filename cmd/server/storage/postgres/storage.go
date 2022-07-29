@@ -134,31 +134,31 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			}
 		}
 	}()
-	s.loger.Infof("%+v", old[target])
+	s.loger.Infof("%+v - %+v", old[target], mm)
 	forAdd := make([]metrics.Metrics, 0)
-	for _, n := range mm {
-		if len(old[target]) == 0 {
-			forAdd = append(forAdd, n)
-			continue
-		}
-		l := len(old[target]) - 1
-		for i, o := range old[target] {
-			if n.ID != o.ID || n.MType != o.MType {
-				if i == l {
-					forAdd = append(old[target], n)
+	if len(old[target]) == 0 {
+		forAdd = append(forAdd, mm...)
+	} else {
+		for _, n := range mm {
+			l := len(old[target]) - 1
+			for i, o := range old[target] {
+				if n.ID != o.ID || n.MType != o.MType {
+					if i == l {
+						forAdd = append(old[target], n)
+					}
+					continue
 				}
-				continue
+				if n.MType == string(metrics.CounterType) {
+					m := *o.Delta + *n.Delta
+					n.Delta = &m
+				}
+				_, err = tx.Exec(context.Background(), `UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4`, n.Delta, n.Value, n.ID, target)
+				if err != nil {
+					s.loger.Error(err)
+					return
+				}
+				break
 			}
-			if n.MType == string(metrics.CounterType) {
-				m := *o.Delta + *n.Delta
-				n.Delta = &m
-			}
-			_, err = tx.Exec(context.Background(), `UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4`, n.Delta, n.Value, n.ID, target)
-			if err != nil {
-				s.loger.Error(err)
-				return
-			}
-			break
 		}
 	}
 	for _, n := range forAdd {
