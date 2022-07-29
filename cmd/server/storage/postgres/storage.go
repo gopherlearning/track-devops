@@ -114,12 +114,25 @@ func (s *Storage) GetMetric(target string, mType string, name string) (*metrics.
 }
 
 // Update(target, metric, name, value string) error
-func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) error {
+func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) (err error) {
 	old, err := s.Metrics(target)
 	if err != nil && err != pgx.ErrNoRows {
 		return err
 	}
-	s.loger.Infof("%+v", old[target])
+	tx, err := s.GetConn(ctx).Begin(ctx)
+	if err != nil {
+		s.loger.Error(err)
+		return
+	}
+	defer func() {
+		if err != nil {
+			err = tx.Rollback(ctx)
+			if err != nil {
+				s.loger.Error(err)
+			}
+		}
+	}()
+	// s.loger.Infof("%+v", old[target])
 	for _, n := range mm {
 		if len(old[target]) == 0 {
 			old[target] = append(old[target], n)
@@ -129,7 +142,11 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 		for i, o := range old[target] {
 			if n.ID != o.ID || n.MType != o.MType {
 				if i == l {
-					old[target] = append(old[target], n)
+					_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6)`, target, n.ID, n.Hash, n.MType, n.Delta, n.Value)
+					if err != nil {
+						s.loger.Error(err)
+						return
+					}
 				}
 				continue
 			}
@@ -137,21 +154,16 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 				m := *o.Delta + *n.Delta
 				n.Delta = &m
 			}
-			old[target][i] = n
+			_, err = tx.Exec(context.Background(), `UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4`, n.Delta, n.Value, n.ID, target)
+			if err != nil {
+				s.loger.Error(err)
+				return
+			}
 			break
 		}
 	}
-	tx, err := s.GetConn(ctx).Begin(ctx)
-	if err != nil {
-		return err
-	}
-	for _, v := range old[target] {
-		_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (target,id) DO UPDATE SET mdelta = $5, mvalue = $6`, target, v.ID, v.Hash, v.MType, v.Delta, v.Value)
-		if err != nil {
-			return err
-		}
-	}
-	return tx.Commit(ctx)
+	err = tx.Commit(ctx)
+	return
 }
 
 func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {

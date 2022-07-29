@@ -26,6 +26,7 @@ type Args struct {
 	DatabaseDSN   string        `short:"d" help:"трока с адресом подключения к БД" env:"DATABASE_DSN"`
 	Key           string        `short:"k" help:"Ключ подписи" env:"KEY"`
 	UsePprof      bool          `help:"Использовать Pprof" env:"PPROF"`
+	ShowStore     bool          `help:"Переодически выводить содержимое в консоль"`
 }
 
 var args Args
@@ -77,25 +78,27 @@ func main() {
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
 	// Периодический вывод содержимого хранилища
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		for {
-			<-ticker.C
+	if args.ShowStore {
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			for {
+				<-ticker.C
 
-			fmt.Println("==============================")
-			list, err := store.List()
-			if err != nil {
-				logrus.Error(err)
-				continue
-			}
-			for target, values := range list {
-				fmt.Printf(`Target "%s":%s`, target, "\n")
-				for _, v := range values {
-					fmt.Printf("\t%s\n", v)
+				fmt.Println("==============================")
+				list, err := store.List()
+				if err != nil {
+					logrus.Error(err)
+					continue
+				}
+				for target, values := range list {
+					fmt.Printf(`Target "%s":%s`, target, "\n")
+					for _, v := range values {
+						fmt.Printf("\t%s\n", v)
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 	go func() {
 		err := s.Start(args.ServerAddr)
 		if err != nil {
