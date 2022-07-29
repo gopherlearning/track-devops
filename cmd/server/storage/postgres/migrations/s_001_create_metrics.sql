@@ -3,7 +3,7 @@ CREATE TABLE metrics (
   hash  VARCHAR ( 65 ),
   target  VARCHAR ( 50 ) NOT NULL,
   mtype VARCHAR ( 50 ) NOT NULL,
-  mdelta INT CHECK (
+  mdelta BIGINT CHECK (
     	(mtype = 'counter' AND mdelta IS NOT NULL)
       OR (mtype = 'gauge' AND mvalue IS NOT NULL)
   ),
