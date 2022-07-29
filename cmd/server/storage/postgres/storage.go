@@ -127,14 +127,14 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 	s.loger.Error(oldMap, mm)
 	s.loger.Error(target, mm)
 
-	var o string
-	for _, v := range old[target] {
-		o = fmt.Sprintf("%s, %s", o, v.ID)
-	}
-	var n string
-	for _, v := range mm {
-		n = fmt.Sprintf("%s, %s", n, v.ID)
-	}
+	// var o string
+	// for _, v := range old[target] {
+	// 	o = fmt.Sprintf("%s, %s", o, v.ID)
+	// }
+	// var n string
+	// for _, v := range mm {
+	// 	n = fmt.Sprintf("%s, %s", n, v.ID)
+	// }
 	s.loger.Infof("%+v - %+v", o, n)
 	forAdd := make(map[string]metrics.Metrics, 0)
 	forUpdate := make(map[string]metrics.Metrics, 0)
@@ -173,6 +173,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			}
 		}
 	}()
+	s.loger.Info("Будут добавлены: %+v", forAdd)
 	for _, n := range forAdd {
 		_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`, target, n.ID, n.Hash, n.MType, n.Delta, n.Value)
 		if err != nil {
@@ -181,6 +182,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			return
 		}
 	}
+	s.loger.Info("Будут обновлены: %+v", forUpdate)
 	for _, n := range forUpdate {
 		_, err = tx.Exec(context.Background(), `UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4`, n.Delta, n.Value, n.ID, target)
 		if err != nil {

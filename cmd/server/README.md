@@ -12,7 +12,7 @@ sudo docker run --name track-devops-postgres -e POSTGRES_PASSWORD=mysecretpasswo
 sudo docker exec -it -u postgres track-devops-postgres psql
 
 
-
+go install github.com/swaggo/swag/cmd/swag@latest
 
 
 CREATE TABLE metrics (  
