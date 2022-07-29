@@ -7,11 +7,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
+
 	"github.com/gopherlearning/track-devops/cmd/server/storage/postgres/migrations"
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/migrate"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -84,6 +86,7 @@ func (s *Storage) GetMetric(target string, mType string, name string) (*metrics.
 	var hash string
 	var mdelta int64
 	var mvalue float64
+	s.loger.Error(target, mType, name)
 	err := s.GetConn(context.Background()).QueryRow(context.Background(), `select hash,COALESCE(mdelta, 0),COALESCE( mvalue, 0 ) from metrics where target = $1 AND id = $2 AND mtype = $3`, target, name, mType).Scan(&hash, &mdelta, &mvalue)
 	if err != nil {
 		s.loger.Error(err)
