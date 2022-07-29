@@ -5,10 +5,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gopherlearning/track-devops/internal/metrics"
-	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gopherlearning/track-devops/internal/metrics"
+	"github.com/gopherlearning/track-devops/internal/repositories"
 )
 
 func newStorage(t *testing.T) *Storage {

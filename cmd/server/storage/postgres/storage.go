@@ -117,8 +117,10 @@ func (s *Storage) GetMetric(target string, mType string, name string) (*metrics.
 func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) (err error) {
 	old, err := s.Metrics(target)
 	if err != nil && err != pgx.ErrNoRows {
+		s.loger.Error(err)
 		return err
 	}
+	s.loger.Error(target, mm)
 	tx, err := s.GetConn(ctx).Begin(ctx)
 	if err != nil {
 		s.loger.Error(err)
@@ -132,21 +134,18 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			}
 		}
 	}()
-	// s.loger.Infof("%+v", old[target])
+	s.loger.Infof("%+v", old[target])
+	forAdd := make([]metrics.Metrics, 0)
 	for _, n := range mm {
 		if len(old[target]) == 0 {
-			old[target] = append(old[target], n)
+			forAdd = append(forAdd, n)
 			continue
 		}
 		l := len(old[target]) - 1
 		for i, o := range old[target] {
 			if n.ID != o.ID || n.MType != o.MType {
 				if i == l {
-					_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6)`, target, n.ID, n.Hash, n.MType, n.Delta, n.Value)
-					if err != nil {
-						s.loger.Error(err)
-						return
-					}
+					forAdd = append(old[target], n)
 				}
 				continue
 			}
@@ -160,6 +159,14 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 				return
 			}
 			break
+		}
+	}
+	for _, n := range forAdd {
+		_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`, target, n.ID, n.Hash, n.MType, n.Delta, n.Value)
+		if err != nil {
+
+			s.loger.Error(err)
+			return
 		}
 	}
 	err = tx.Commit(ctx)

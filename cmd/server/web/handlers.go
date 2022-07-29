@@ -8,9 +8,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/labstack/echo/v4"
+
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
-	"github.com/labstack/echo/v4"
 )
 
 // GetMetric ...

@@ -11,12 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
-	"github.com/gopherlearning/track-devops/internal/metrics"
-	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
+	"github.com/gopherlearning/track-devops/internal/metrics"
+	"github.com/gopherlearning/track-devops/internal/repositories"
 )
 
 func TestEchoHandler_Get(t *testing.T) {

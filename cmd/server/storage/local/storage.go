@@ -10,9 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
-	"github.com/sirupsen/logrus"
 )
 
 type Storage struct {

@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/labstack/echo-contrib/pprof"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gopherlearning/track-devops/internal/repositories"
 )
 
 type EchoServer struct {

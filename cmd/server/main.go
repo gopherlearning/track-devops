@@ -11,11 +11,12 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/caarlos0/env/v6"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
 	"github.com/gopherlearning/track-devops/cmd/server/storage/postgres"
 	"github.com/gopherlearning/track-devops/cmd/server/web"
 	"github.com/gopherlearning/track-devops/internal/repositories"
-	"github.com/sirupsen/logrus"
 )
 
 type Args struct {
