@@ -120,7 +120,37 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 		s.loger.Error(err)
 		return err
 	}
+	oldMap := make(map[string]metrics.Metrics, len(old[target]))
+	for _, v := range old[target] {
+		oldMap[v.ID] = v
+	}
+	s.loger.Error(oldMap, mm)
 	s.loger.Error(target, mm)
+
+	var o string
+	for _, v := range old[target] {
+		o = fmt.Sprintf("%s, %s", o, v.ID)
+	}
+	var n string
+	for _, v := range mm {
+		n = fmt.Sprintf("%s, %s", n, v.ID)
+	}
+	s.loger.Infof("%+v - %+v", o, n)
+	forAdd := make([]metrics.Metrics, 0)
+	forUpdate := make([]metrics.Metrics, 0)
+	for _, n := range mm {
+		o, ok := oldMap[n.ID]
+		if !ok {
+			forAdd = append(forAdd, n)
+			continue
+		}
+		if n.MType == string(metrics.CounterType) {
+			m := *o.Delta + *n.Delta
+			n.Delta = &m
+		}
+		forUpdate = append(forUpdate, n)
+	}
+
 	tx, err := s.GetConn(ctx).Begin(ctx)
 	if err != nil {
 		s.loger.Error(err)
@@ -134,45 +164,17 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			}
 		}
 	}()
-	var o string
-	for _, v := range old[target] {
-		o = fmt.Sprintf("%s, %s", o, v.ID)
-	}
-	var n string
-	for _, v := range mm {
-		n = fmt.Sprintf("%s, %s", n, v.ID)
-	}
-	s.loger.Infof("%+v - %+v", o, n)
-	forAdd := make([]metrics.Metrics, 0)
-	if len(old[target]) == 0 {
-		forAdd = append(forAdd, mm...)
-	} else {
-		for _, n := range mm {
-			l := len(old[target]) - 1
-			for i, o := range old[target] {
-				if n.ID != o.ID || n.MType != o.MType {
-					if i == l {
-						forAdd = append(old[target], n)
-					}
-					continue
-				}
-				if n.MType == string(metrics.CounterType) {
-					m := *o.Delta + *n.Delta
-					n.Delta = &m
-				}
-				_, err = tx.Exec(context.Background(), `UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4`, n.Delta, n.Value, n.ID, target)
-				if err != nil {
-					s.loger.Error(err)
-					return
-				}
-				break
-			}
-		}
-	}
 	for _, n := range forAdd {
 		_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`, target, n.ID, n.Hash, n.MType, n.Delta, n.Value)
 		if err != nil {
 
+			s.loger.Error(err)
+			return
+		}
+	}
+	for _, n := range forUpdate {
+		_, err = tx.Exec(context.Background(), `UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4`, n.Delta, n.Value, n.ID, target)
+		if err != nil {
 			s.loger.Error(err)
 			return
 		}
