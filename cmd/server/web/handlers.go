@@ -100,6 +100,7 @@ func (h *EchoServer) UpdatesMetricJSON(c echo.Context) error {
 		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
+	h.loger.Warn(mm)
 	if len(h.key) != 0 {
 		for _, v := range mm {
 			recived := v.Hash
@@ -109,6 +110,7 @@ func (h *EchoServer) UpdatesMetricJSON(c echo.Context) error {
 			}
 		}
 	}
+	h.loger.Warn(mm)
 
 	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), mm...); err != nil {
 		switch err {
@@ -141,6 +143,7 @@ func (h *EchoServer) UpdateMetricJSON(c echo.Context) error {
 		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
+	h.loger.Warn(m)
 	if len(h.key) != 0 {
 		recived := m.Hash
 		err = m.Sign(h.key)
@@ -148,6 +151,7 @@ func (h *EchoServer) UpdateMetricJSON(c echo.Context) error {
 			return c.HTML(http.StatusBadRequest, "подпись не соответствует ожиданиям")
 		}
 	}
+	h.loger.Warn(m)
 
 	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), m); err != nil {
 		switch err {
