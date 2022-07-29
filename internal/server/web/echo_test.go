@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
+	"github.com/gopherlearning/track-devops/internal/server/storage/local"
 )
 
 func TestEchoHandler_Get(t *testing.T) {

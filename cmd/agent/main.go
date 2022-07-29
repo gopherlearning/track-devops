@@ -10,9 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/caarlos0/env/v6"
-
 	"github.com/alecthomas/kong"
+	"github.com/caarlos0/env/v6"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"

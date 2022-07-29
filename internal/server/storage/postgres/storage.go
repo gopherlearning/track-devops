@@ -9,12 +9,11 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/sirupsen/logrus"
 
-	"github.com/gopherlearning/track-devops/cmd/server/storage/postgres/migrations"
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/migrate"
-
-	"github.com/sirupsen/logrus"
+	"github.com/gopherlearning/track-devops/internal/server/storage/postgres/migrations"
 )
 
 type Storage struct {
