@@ -136,19 +136,28 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 		n = fmt.Sprintf("%s, %s", n, v.ID)
 	}
 	s.loger.Infof("%+v - %+v", o, n)
-	forAdd := make([]metrics.Metrics, 0)
-	forUpdate := make([]metrics.Metrics, 0)
+	forAdd := make(map[string]metrics.Metrics, 0)
+	forUpdate := make(map[string]metrics.Metrics, 0)
 	for _, n := range mm {
-		o, ok := oldMap[n.ID]
+		o, ok := forAdd[n.ID]
 		if !ok {
-			forAdd = append(forAdd, n)
+			if o.MType == string(metrics.CounterType) {
+				m := *o.Delta + *n.Delta
+				n.Delta = &m
+			}
+			forAdd[n.ID] = n
+			continue
+		}
+		o, ok = oldMap[n.ID]
+		if !ok {
+			forAdd[n.ID] = n
 			continue
 		}
 		if n.MType == string(metrics.CounterType) {
 			m := *o.Delta + *n.Delta
 			n.Delta = &m
 		}
-		forUpdate = append(forUpdate, n)
+		forUpdate[n.ID] = n
 	}
 
 	tx, err := s.GetConn(ctx).Begin(ctx)
