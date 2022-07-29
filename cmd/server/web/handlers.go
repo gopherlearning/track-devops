@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 
@@ -171,11 +172,17 @@ func (h *EchoServer) GetMetricJSON(c echo.Context) error {
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
 	}
-
-	decoder := json.NewDecoder(c.Request().Body)
 	defer c.Request().Body.Close()
+	b, err := ioutil.ReadAll(c.Request().Body)
+	if err != nil {
+		h.loger.Error(err)
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+	h.loger.Error(string(b))
+	buf := bytes.NewBuffer(b)
+	decoder := json.NewDecoder(buf)
 	m := metrics.Metrics{}
-	err := decoder.Decode(&m)
+	err = decoder.Decode(&m)
 	if err != nil {
 		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
