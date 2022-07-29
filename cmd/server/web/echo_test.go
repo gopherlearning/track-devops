@@ -52,7 +52,6 @@ func TestEchoHandler_Get(t *testing.T) {
 			s := newStorage(t)
 			if len(tt.want) != 0 {
 				m := strings.Split(tt.request, "/")
-				// require.NoError(t, s.Update(tt.target, m[2], m[3], tt.value))
 				require.NoError(t, s.UpdateMetric(context.Background(), tt.target, metrics.Metrics{MType: m[2], ID: m[3], Delta: metrics.GetInt64Pointer(tt.value["counter"].(int64)), Value: metrics.GetFloat64Pointer(tt.value["gauge"].(float64))}))
 			}
 			handler := NewEchoServer(s)

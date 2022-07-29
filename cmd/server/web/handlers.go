@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 
@@ -100,7 +99,6 @@ func (h *EchoServer) UpdatesMetricJSON(c echo.Context) error {
 		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
-	h.loger.Warn(mm)
 	if len(h.key) != 0 {
 		for _, v := range mm {
 			recived := v.Hash
@@ -110,7 +108,6 @@ func (h *EchoServer) UpdatesMetricJSON(c echo.Context) error {
 			}
 		}
 	}
-	h.loger.Warn(mm)
 
 	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), mm...); err != nil {
 		switch err {
@@ -143,7 +140,6 @@ func (h *EchoServer) UpdateMetricJSON(c echo.Context) error {
 		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
-	h.loger.Warn(m)
 	if len(h.key) != 0 {
 		recived := m.Hash
 		err = m.Sign(h.key)
@@ -151,7 +147,6 @@ func (h *EchoServer) UpdateMetricJSON(c echo.Context) error {
 			return c.HTML(http.StatusBadRequest, "подпись не соответствует ожиданиям")
 		}
 	}
-	h.loger.Warn(m)
 
 	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), m); err != nil {
 		switch err {
@@ -176,17 +171,10 @@ func (h *EchoServer) GetMetricJSON(c echo.Context) error {
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
 	}
+	decoder := json.NewDecoder(c.Request().Body)
 	defer c.Request().Body.Close()
-	b, err := ioutil.ReadAll(c.Request().Body)
-	if err != nil {
-		h.loger.Error(err)
-		return c.String(http.StatusBadRequest, err.Error())
-	}
-	h.loger.Error(string(b))
-	buf := bytes.NewBuffer(b)
-	decoder := json.NewDecoder(buf)
 	m := metrics.Metrics{}
-	err = decoder.Decode(&m)
+	err := decoder.Decode(&m)
 	if err != nil {
 		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
@@ -202,6 +190,5 @@ func (h *EchoServer) GetMetricJSON(c echo.Context) error {
 		}
 		return c.JSON(http.StatusOK, v)
 	}
-	h.loger.Warn(m)
 	return c.NoContent(http.StatusNotFound)
 }
