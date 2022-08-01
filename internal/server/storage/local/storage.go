@@ -16,13 +16,16 @@ import (
 	"github.com/gopherlearning/track-devops/internal/repositories"
 )
 
+var _ repositories.Repository = (*Storage)(nil)
+
+// Storage inmemory storage
 type Storage struct {
 	mu        sync.RWMutex
 	storeFile string
 	metrics   map[string][]metrics.Metrics
 }
 
-// NewStorage
+// NewStorage inmemory storage
 func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string) (*Storage, error) {
 	s := &Storage{
 		metrics: make(map[string][]metrics.Metrics),
@@ -57,12 +60,12 @@ func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string)
 	return s, nil
 }
 
-var _ repositories.Repository = new(Storage)
-
+// Ping заглушка
 func (s *Storage) Ping(context.Context) error {
 	return nil
 }
 
+// Save perform dump of storage to disk
 func (s *Storage) Save() error {
 	m, _ := s.Metrics("")
 	data, err := json.MarshalIndent(m, "", "  ")
@@ -79,20 +82,8 @@ func (s *Storage) Save() error {
 	}
 	return nil
 }
-func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	res := make(map[string][]metrics.Metrics)
-	for target := range s.metrics {
-		for k := range s.metrics[target] {
-			if _, ok := res[target]; !ok {
-				res[target] = make([]metrics.Metrics, 0)
-			}
-			res[target] = append(res[target], s.metrics[target][k])
-		}
-	}
-	return res, nil
-}
+
+// GetMetric ...
 func (s *Storage) GetMetric(target, mtype, name string) (*metrics.Metrics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -107,6 +98,7 @@ func (s *Storage) GetMetric(target, mtype, name string) (*metrics.Metrics, error
 	return nil, nil
 }
 
+// UpdateMetric ...
 func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -143,6 +135,23 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 	return nil
 }
 
+// Metrics returns metrics view of stored metrics
+func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	res := make(map[string][]metrics.Metrics)
+	for target := range s.metrics {
+		for k := range s.metrics[target] {
+			if _, ok := res[target]; !ok {
+				res[target] = make([]metrics.Metrics, 0)
+			}
+			res[target] = append(res[target], s.metrics[target][k])
+		}
+	}
+	return res, nil
+}
+
+// List all metrics for all targets
 func (s *Storage) List() (map[string][]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

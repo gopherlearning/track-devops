@@ -6,6 +6,7 @@ import (
 	"github.com/gopherlearning/track-devops/internal/metrics"
 )
 
+// Repository storage interface
 type Repository interface {
 	GetMetric(target, mType, name string) (*metrics.Metrics, error)
 	Ping(context.Context) error

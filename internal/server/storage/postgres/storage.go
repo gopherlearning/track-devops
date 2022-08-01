@@ -13,9 +13,13 @@ import (
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/migrate"
+	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/gopherlearning/track-devops/internal/server/storage/postgres/migrations"
 )
 
+var _ repositories.Repository = (*Storage)(nil)
+
+// Storage postgres storage
 type Storage struct {
 	mu                 sync.Mutex
 	db                 *pgxpool.Pool
@@ -24,6 +28,7 @@ type Storage struct {
 	maxConnectAttempts int
 }
 
+// NewStorage reterns new  postgres storage
 func NewStorage(dsn string, loger logrus.FieldLogger) (*Storage, error) {
 	connConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -38,25 +43,30 @@ func NewStorage(dsn string, loger logrus.FieldLogger) (*Storage, error) {
 	}
 	return s, nil
 }
+
+// Ping check connection
+func (s *Storage) Ping(ctx context.Context) error {
+	ctx_, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	ping := make(chan error)
+	go func() {
+		ping <- s.GetConn(ctx_).Ping(ctx_)
+	}()
+	select {
+	case err := <-ping:
+		return err
+	case <-ctx_.Done():
+		return fmt.Errorf("context closed")
+	}
+}
+
+// Close database connection
 func (s *Storage) Close(ctx context.Context) error {
 	if s.db == nil {
 		return nil
 	}
 	s.db.Close()
 	return nil
-}
-
-func (s *Storage) reconnect(ctx context.Context) (*pgxpool.Pool, error) {
-
-	pool, err := pgxpool.ConnectConfig(context.Background(), s.connConfig)
-
-	if err != nil {
-		return nil, fmt.Errorf("unable to connection to database: %v", err)
-	}
-	if err = pool.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("couldn't ping postgre database: %v", err)
-	}
-	return pool, err
 }
 
 func (s *Storage) GetConn(ctx context.Context) *pgxpool.Pool {
@@ -80,7 +90,7 @@ func (s *Storage) GetConn(ctx context.Context) *pgxpool.Pool {
 	return s.db
 }
 
-// Get(target, metric, name string) string
+// GetMetric ...
 func (s *Storage) GetMetric(target string, mType string, name string) (*metrics.Metrics, error) {
 	var hash string
 	var mdelta int64
@@ -111,7 +121,7 @@ func (s *Storage) GetMetric(target string, mType string, name string) (*metrics.
 
 }
 
-// Update(target, metric, name, value string) error
+// UpdateMetric ...
 func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) (err error) {
 	old, err := s.Metrics(target)
 	if err != nil && err != pgx.ErrNoRows {
@@ -178,6 +188,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 	return
 }
 
+// Metrics returns metrics view of stored metrics
 func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {
 	res := make(map[string][]metrics.Metrics)
 	SQL := `select target,id,hash,mtype,COALESCE(mdelta, 0),COALESCE( mvalue, 0 ) from metrics`
@@ -231,6 +242,7 @@ func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {
 	return res, nil
 }
 
+// List all metrics for all targets
 func (s *Storage) List() (map[string][]string, error) {
 	mm, err := s.Metrics("")
 	if err != nil {
@@ -255,18 +267,15 @@ func (s *Storage) ListProm(targets ...string) ([]byte, error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (s *Storage) Ping(ctx context.Context) error {
-	ctx_, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	ping := make(chan error)
-	go func() {
-		ping <- s.GetConn(ctx_).Ping(ctx_)
-	}()
-	select {
-	case err := <-ping:
-		return err
-	case <-ctx_.Done():
-		return fmt.Errorf("context closed")
-	}
+func (s *Storage) reconnect(ctx context.Context) (*pgxpool.Pool, error) {
 
+	pool, err := pgxpool.ConnectConfig(context.Background(), s.connConfig)
+
+	if err != nil {
+		return nil, fmt.Errorf("unable to connection to database: %v", err)
+	}
+	if err = pool.Ping(context.Background()); err != nil {
+		return nil, fmt.Errorf("couldn't ping postgre database: %v", err)
+	}
+	return pool, err
 }

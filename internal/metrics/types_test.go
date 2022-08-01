@@ -103,18 +103,26 @@ func TestMetrics(t *testing.T) {
 	require.NotEmpty(t, m.All())
 	assert.Nil(t, m.Save(nil, nil, true, false))
 	assert.Error(t, m.Save(&http.Client{}, new(string), true, false))
+	assert.Error(t, m.Save(&http.Client{}, new(string), true, true))
+	assert.Error(t, m.Save(&http.Client{}, new(string), false, true))
+	badURL := "bla"
+	assert.Error(t, m.Save(&http.Client{}, &badURL, false, true))
 	assert.Equal(t, m.Scrape(), nil)
 	for _, v := range m.AllMetrics() {
 		assert.NotEmpty(t, v.String())
 		assert.Contains(t, v.StringFull(), " - ")
 	}
+	m.key = []byte("1")
+	assert.Nil(t, m.AllMetrics())
+	m.key = []byte("secret")
 	ms := &Metrics{MType: "counter", ID: "test", Delta: nil, Value: nil}
 	assert.Equal(t, ms.String(), "")
 	ms = &Metrics{MType: "gauge", ID: "test", Delta: nil, Value: nil}
 	assert.Equal(t, ms.String(), "")
 	ms = &Metrics{MType: "test", ID: "test", Delta: nil, Value: nil}
 	assert.Equal(t, ms.String(), "")
-	assert.Equal(t, ms.Sign(nil), ErrNoSuchMetricType)
+	assert.Equal(t, ms.Sign([]byte("secret")), ErrNoSuchMetricType)
+	assert.Equal(t, ms.Sign(nil), ErrTooSHortKey)
 	assert.Contains(t, ms.StringFull(), "")
 	_, err := ms.MarshalJSON()
 	assert.Equal(t, err, ErrNoSuchMetricType)
@@ -126,4 +134,6 @@ func TestMetrics(t *testing.T) {
 	assert.Contains(t, ms.StringFull(), " - ")
 	ms = &Metrics{MType: string(GaugeType), ID: "test"}
 	assert.Contains(t, ms.StringFull(), " - ")
+	runtimeMetrics["test"] = "badMetric"
+	assert.Nil(t, m.MemStats())
 }
