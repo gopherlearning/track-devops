@@ -34,6 +34,16 @@ func NewStorage(dsn string, loger logrus.FieldLogger) (*Storage, error) {
 	}
 	connConfig.HealthCheckPeriod = 2 * time.Second
 	s := &Storage{connConfig: connConfig, loger: loger, maxConnectAttempts: 10}
+	pool, err := pgxpool.ConnectConfig(context.Background(), s.connConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connection to database: %v", err)
+	}
+	s.db = pool
+	err = s.db.Ping(context.Background())
+	if err != nil {
+		loger.Error(err)
+		return nil, err
+	}
 	err = migrate.MigrateFromFS(context.Background(), s.db, &migrations.Migrations, loger)
 	if err != nil {
 		loger.Error(err)
