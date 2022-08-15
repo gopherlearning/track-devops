@@ -169,16 +169,27 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			}
 		}
 	}()
+
+	stmtInsert, err := tx.Prepare(ctx, "insert", `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`)
+	if err != nil {
+		return err
+	}
 	for _, n := range forAdd {
-		_, err = tx.Exec(context.Background(), `INSERT INTO metrics (target,id, hash, mtype, mdelta, mvalue) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`, target, n.ID, n.Hash, n.MType, n.Delta, n.Value)
+		_, err = tx.Exec(ctx, stmtInsert.Name, target, n.ID, n.Hash, n.MType, n.Delta, n.Value)
 		if err != nil {
 
 			s.loger.Error(err)
 			return
 		}
 	}
+
+	// шаг 2 — готовим инструкцию
+	stmtUpdate, err := tx.Prepare(ctx, "update", "UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4")
+	if err != nil {
+		return err
+	}
 	for _, n := range forUpdate {
-		_, err = tx.Exec(context.Background(), `UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4`, n.Delta, n.Value, n.ID, target)
+		_, err = tx.Exec(ctx, stmtUpdate.Name, n.Delta, n.Value, n.ID, target)
 		if err != nil {
 			s.loger.Error(err)
 			return
