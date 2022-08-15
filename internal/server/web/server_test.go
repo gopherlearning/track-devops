@@ -1,23 +1,17 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/gopherlearning/track-devops/cmd/server/handlers"
-	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newStorage(t *testing.T) *local.Storage {
-	s, err := local.NewStorage(false, nil)
-	require.NoError(t, err)
-	return s
-}
 func TestServer(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -30,7 +24,8 @@ func TestServer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewEchoServer(handlers.NewEchoHandler(newStorage(t), nil))
+			s := NewEchoServer(newStorage(t))
+			require.NoError(t, s.s.Ping(context.TODO()))
 			require.NotNil(t, s)
 			wg := sync.WaitGroup{}
 			wg.Add(2)
@@ -51,4 +46,5 @@ func TestServer(t *testing.T) {
 
 		})
 	}
+
 }

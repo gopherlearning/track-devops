@@ -115,7 +115,7 @@ type PgxIface interface {
 	Close(context.Context) error
 }
 
-// MigrateFromFS executes database migrations
+// MigrateFromFS executes database migrations from emdebed files
 func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, loger logrus.FieldLogger) error {
 	if loger == nil {
 		loger = logrus.StandardLogger()

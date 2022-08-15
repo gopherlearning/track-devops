@@ -9,16 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	lokihook "github.com/akkuman/logrus-loki-hook"
 	"github.com/alecthomas/kong"
 	"github.com/caarlos0/env/v6"
-	"github.com/gopherlearning/track-devops/cmd/server/handlers"
-	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
-	"github.com/gopherlearning/track-devops/cmd/server/storage/postgres"
-	"github.com/gopherlearning/track-devops/cmd/server/web"
-	"github.com/gopherlearning/track-devops/internal/repositories"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gopherlearning/track-devops/internal/repositories"
+	"github.com/gopherlearning/track-devops/internal/server/storage/local"
+	"github.com/gopherlearning/track-devops/internal/server/storage/postgres"
+	"github.com/gopherlearning/track-devops/internal/server/web"
 )
 
 type Args struct {
@@ -26,9 +24,14 @@ type Args struct {
 	StoreInterval time.Duration `short:"i" help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s"`
 	StoreFile     string        `short:"f" help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json"`
 	Restore       bool          `short:"r" help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true"`
-	DatabaseDSN   string        `short:"d" help:"трока с адресом подключения к БД" env:"DATABASE_DSN"`
+	DatabaseDSN   string        `short:"d" help:"строка с адресом подключения к БД" env:"DATABASE_DSN"`
 	Key           string        `short:"k" help:"Ключ подписи" env:"KEY"`
+	UsePprof      bool          `help:"Использовать Pprof" env:"PPROF"`
+	ShowStore     bool          `help:"Переодически выводить содержимое в консоль"`
 }
+
+// showContent период вывода содержимого хранилища
+const showContent = 5 * time.Second
 
 var args Args
 
@@ -48,19 +51,6 @@ func init() {
 			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
 		}
 	}
-	lokiHookConfig := &lokihook.Config{
-		URL: "https://logsremoteloki:efnd9DG510YnZQUjMlgMYVIN@loki.duduh.ru/api/prom/push",
-		Labels: map[string]string{
-			"app": "track-devops",
-		},
-	}
-	hook, err := lokihook.NewHook(lokiHookConfig)
-	if err != nil {
-		logrus.Error(err)
-	} else {
-		logrus.AddHook(hook)
-	}
-
 }
 
 func main() {
@@ -77,6 +67,7 @@ func main() {
 		if err != nil {
 			logrus.Error(err)
 			return
+
 		}
 	} else {
 		store, err = local.NewStorage(args.Restore, &args.StoreInterval, args.StoreFile)
@@ -85,28 +76,33 @@ func main() {
 			return
 		}
 	}
-	h := handlers.NewEchoHandler(store, []byte(args.Key))
-	h.SetLoger(logrus.StandardLogger())
-	s := web.NewEchoServer(h)
+	s := web.NewEchoServer(store, web.WithKey([]byte(args.Key)), web.WithPprof(args.UsePprof), web.WithLoger(logrus.StandardLogger()))
 
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
 	// Периодический вывод содержимого хранилища
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		for {
-			<-ticker.C
+	if args.ShowStore {
+		go func() {
+			ticker := time.NewTicker(showContent)
+			for {
+				<-ticker.C
 
-			fmt.Println("==============================")
-			for target, values := range store.List() {
-				fmt.Printf(`Target "%s":%s`, target, "\n")
-				for _, v := range values {
-					fmt.Printf("\t%s\n", v)
+				fmt.Println("==============================")
+				list, err := store.List(context.Background())
+				if err != nil {
+					logrus.Error(err)
+					continue
+				}
+				for target, values := range list {
+					fmt.Printf(`Target "%s":%s`, target, "\n")
+					for _, v := range values {
+						fmt.Printf("\t%s\n", v)
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 	go func() {
 		err := s.Start(args.ServerAddr)
 		if err != nil {

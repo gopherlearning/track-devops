@@ -10,18 +10,22 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
-	"github.com/sirupsen/logrus"
 )
 
+var _ repositories.Repository = (*Storage)(nil)
+
+// Storage inmemory storage
 type Storage struct {
 	mu        sync.RWMutex
 	storeFile string
 	metrics   map[string][]metrics.Metrics
 }
 
-// NewStorage
+// NewStorage inmemory storage
 func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string) (*Storage, error) {
 	s := &Storage{
 		metrics: make(map[string][]metrics.Metrics),
@@ -56,14 +60,10 @@ func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string)
 	return s, nil
 }
 
-var _ repositories.Repository = new(Storage)
-
-func (s *Storage) Ping(context.Context) error {
-	return nil
-}
-
+// Save perform dump of storage to disk
 func (s *Storage) Save() error {
-	data, err := json.MarshalIndent(s.Metrics(), "", "  ")
+	m, _ := s.Metrics(context.Background(), "")
+	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -77,35 +77,29 @@ func (s *Storage) Save() error {
 	}
 	return nil
 }
-func (s *Storage) Metrics() map[string][]metrics.Metrics {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	res := make(map[string][]metrics.Metrics)
-	for target := range s.metrics {
-		for k := range s.metrics[target] {
-			if _, ok := res[target]; !ok {
-				res[target] = make([]metrics.Metrics, 0)
-			}
-			res[target] = append(res[target], s.metrics[target][k])
-		}
-	}
-	return res
-}
-func (s *Storage) GetMetric(target, mtype, name string) *metrics.Metrics {
+
+// GetMetric ...
+func (s *Storage) GetMetric(ctx context.Context, target, mtype, name string) (*metrics.Metrics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if _, ok := s.metrics[target]; ok {
 		for i := range s.metrics[target] {
 			if s.metrics[target][i].MType == mtype && s.metrics[target][i].ID == name {
 				res := s.metrics[target][i]
-				return &res
+				return &res, nil
 			}
 		}
 	}
+	return nil, nil
+}
+
+// Ping заглушка
+func (s *Storage) Ping(context.Context) error {
 	return nil
 }
 
-func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
+// UpdateMetric ...
+func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, m := range mm {
@@ -141,7 +135,24 @@ func (s *Storage) UpdateMetric(target string, mm ...metrics.Metrics) error {
 	return nil
 }
 
-func (s *Storage) List(targets ...string) map[string][]string {
+// Metrics returns metrics view of stored metrics
+func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metrics.Metrics, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	res := make(map[string][]metrics.Metrics)
+	for target := range s.metrics {
+		for k := range s.metrics[target] {
+			if _, ok := res[target]; !ok {
+				res[target] = make([]metrics.Metrics, 0)
+			}
+			res[target] = append(res[target], s.metrics[target][k])
+		}
+	}
+	return res, nil
+}
+
+// List all metrics for all targets
+func (s *Storage) List(ctx context.Context) (map[string][]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	res := make(map[string][]string)
@@ -157,9 +168,5 @@ func (s *Storage) List(targets ...string) map[string][]string {
 			res[k] = v
 		}
 	}
-	return res
-}
-
-func (s *Storage) ListProm(targets ...string) []byte {
-	panic("not implemented") // TODO: Implement
+	return res, nil
 }

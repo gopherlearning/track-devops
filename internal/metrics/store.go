@@ -16,7 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type Store struct {
+type store struct {
 	mu      sync.RWMutex
 	memstat *runtime.MemStats
 	custom  map[string]Metric
@@ -53,15 +53,18 @@ var runtimeMetrics = map[string]string{
 	"TotalAlloc":    "gauge",
 }
 
-func NewStore(key []byte) *Store {
+// NewStore create in memory metrics store
+func NewStore(key []byte) *store {
 
-	return &Store{
+	return &store{
 		memstat: &runtime.MemStats{},
 		custom:  make(map[string]Metric),
 		key:     key,
 	}
 }
-func (s *Store) MemStats() []string {
+
+// MemStats returns memstat metrics in URL view
+func (s *store) MemStats() []string {
 	s.mu.RLock()
 	res := make([]string, 0)
 	r := reflect.ValueOf(s.memstat)
@@ -78,7 +81,8 @@ func (s *Store) MemStats() []string {
 	return res
 }
 
-func (s *Store) All() []string {
+// All returns all metrics
+func (s *store) All() []string {
 	res := make([]string, 0)
 	for _, v := range s.Custom() {
 		res = append(res, fmt.Sprintf("/update/%s/%s/%s", v.Type(), v.Name(), v))
@@ -88,7 +92,8 @@ func (s *Store) All() []string {
 	return res
 }
 
-func (s *Store) AllMetrics() []Metrics {
+// AllMetrics returns in Metrics view
+func (s *store) AllMetrics() []Metrics {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	res := make([]Metrics, 0)
@@ -146,7 +151,8 @@ func (s *Store) AllMetrics() []Metrics {
 	return res
 }
 
-func (s *Store) Custom() map[string]Metric {
+// Custom returns custom metrics
+func (s *store) Custom() map[string]Metric {
 	s.mu.Lock()
 	result := make(map[string]Metric, len(s.custom))
 	for k, v := range s.custom {
@@ -155,7 +161,9 @@ func (s *Store) Custom() map[string]Metric {
 	s.mu.Unlock()
 	return result
 }
-func (s *Store) Save(client *http.Client, baseURL *string, isJSON bool, batch bool) error {
+
+// Save send metrics to store server
+func (s *store) Save(client *http.Client, baseURL *string, isJSON bool, batch bool) error {
 	if client != nil && baseURL != nil {
 		if !isJSON {
 			res := s.All()
@@ -293,7 +301,8 @@ func sendMetrics(ctx context.Context, c *http.Client, url string, metrics []Metr
 	return nil
 }
 
-func (s *Store) AddCustom(m ...Metric) {
+// AddCustom add custom metrics to store
+func (s *store) AddCustom(m ...Metric) {
 	s.mu.Lock()
 	for _, v := range m {
 		fmt.Println("Metric ", v.Name(), " was added")
@@ -301,7 +310,9 @@ func (s *Store) AddCustom(m ...Metric) {
 	}
 	s.mu.Unlock()
 }
-func (s *Store) Scrape() error {
+
+// Scrape perform collect metrics
+func (s *store) Scrape() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	runtime.ReadMemStats(s.memstat)

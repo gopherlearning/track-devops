@@ -1,7 +1,8 @@
-package handlers
+package web
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -10,12 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gopherlearning/track-devops/cmd/server/storage/local"
-	"github.com/gopherlearning/track-devops/internal/metrics"
-	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gopherlearning/track-devops/internal/metrics"
+	"github.com/gopherlearning/track-devops/internal/repositories"
+	"github.com/gopherlearning/track-devops/internal/server/storage/local"
 )
 
 func TestEchoHandler_Get(t *testing.T) {
@@ -50,13 +52,12 @@ func TestEchoHandler_Get(t *testing.T) {
 			s := newStorage(t)
 			if len(tt.want) != 0 {
 				m := strings.Split(tt.request, "/")
-				// require.NoError(t, s.Update(tt.target, m[2], m[3], tt.value))
-				require.NoError(t, s.UpdateMetric(tt.target, metrics.Metrics{MType: m[2], ID: m[3], Delta: metrics.GetInt64Pointer(tt.value["counter"].(int64)), Value: metrics.GetFloat64Pointer(tt.value["gauge"].(float64))}))
+				require.NoError(t, s.UpdateMetric(context.TODO(), tt.target, metrics.Metrics{MType: m[2], ID: m[3], Delta: metrics.GetInt64Pointer(tt.value["counter"].(int64)), Value: metrics.GetFloat64Pointer(tt.value["gauge"].(float64))}))
 			}
-			handler := NewEchoHandler(s, nil)
+			handler := NewEchoServer(s)
 			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
 			w := httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
+			handler.e.ServeHTTP(w, handler.e.NewContext(request, w).Request())
 			result := w.Result()
 
 			assert.Equal(t, tt.status, result.StatusCode)
@@ -199,20 +200,6 @@ func TestEchoHandler_Update(t *testing.T) {
 				value2:     "",
 			},
 		},
-		// {
-		// 	name:     "Неправильный Content-Type",
-		// 	fields:   fields{s: newStorage(t)},
-		// 	content:  "",
-		// 	method:   http.MethodPost,
-		// 	request1: "/update/counter/PollCount/2",
-		// 	request2: "/update/counter/PollCount/3",
-		// 	want: want{
-		// 		statusCode: http.StatusBadRequest,
-		// 		body:       "Only text/plain content are allowed!\n",
-		// 		value1:     nil,
-		// 		value2:     nil,
-		// 	},
-		// },
 		{
 			name:     "Неправильный http метод",
 			fields:   fields{s: newStorage(t)},
@@ -245,10 +232,10 @@ func TestEchoHandler_Update(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewEchoHandler(tt.fields.s, nil)
+			handler := NewEchoServer(tt.fields.s)
 			request := httptest.NewRequest(tt.method, tt.request1, nil)
 			w := httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
+			handler.e.ServeHTTP(w, handler.e.NewContext(request, w).Request())
 			result := w.Result()
 
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
@@ -265,13 +252,14 @@ func TestEchoHandler_Update(t *testing.T) {
 
 			match := rMetricURL.FindStringSubmatch(tt.request1)
 			require.Equal(t, len(match), 4)
-			assert.Contains(t, tt.fields.s.List()["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value1))
-			fmt.Println(tt.name, tt.fields.s.List())
+			list, _ := tt.fields.s.List(context.TODO())
+			assert.Contains(t, list["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value1))
+			fmt.Println(tt.name, list)
 
 			request = httptest.NewRequest(tt.method, tt.request2, nil)
 			request.Header.Add("Content-Type", tt.content)
 			w = httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, request)
+			handler.e.ServeHTTP(w, request)
 
 			result = w.Result()
 
@@ -286,13 +274,14 @@ func TestEchoHandler_Update(t *testing.T) {
 			if result.StatusCode == http.StatusOK {
 				match := rMetricURL.FindStringSubmatch(tt.request1)
 				assert.Equal(t, len(match), 4)
-				assert.Contains(t, tt.fields.s.List()["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value2))
-				fmt.Println(tt.name, tt.fields.s.List())
+				list, _ := tt.fields.s.List(context.TODO())
+				assert.Contains(t, list["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value2))
+				fmt.Println(tt.name, list)
 			}
 		})
 	}
 }
-func newStorage(t *testing.T) *local.Storage {
+func newStorage(t *testing.T) repositories.Repository {
 	s, err := local.NewStorage(false, nil)
 	require.NoError(t, err)
 	return s
@@ -357,14 +346,13 @@ func TestEchoHandlerJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewEchoHandler(tt.fields.s, nil)
-			handler.SetLoger(loger)
+			handler := NewEchoServer(tt.fields.s, WithLoger(loger))
 
 			buf := bytes.NewBufferString(tt.body1)
 			request := httptest.NewRequest(tt.method, tt.request1, buf)
 			request.Header.Add("Content-Type", tt.content)
 			w := httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, handler.Echo().NewContext(request, w).Request())
+			handler.e.ServeHTTP(w, handler.e.NewContext(request, w).Request())
 			result := w.Result()
 
 			assert.Equal(t, tt.want.statusCode1, result.StatusCode)
@@ -382,7 +370,7 @@ func TestEchoHandlerJSON(t *testing.T) {
 			request = httptest.NewRequest(tt.method, tt.request2, buf)
 			request.Header.Add("Content-Type", tt.content)
 			w = httptest.NewRecorder()
-			handler.Echo().ServeHTTP(w, request)
+			handler.e.ServeHTTP(w, request)
 
 			result = w.Result()
 
@@ -395,7 +383,8 @@ func TestEchoHandlerJSON(t *testing.T) {
 			assert.Equal(t, tt.want.resp2, string(body))
 
 			if result.StatusCode == http.StatusOK {
-				fmt.Println(tt.name, tt.fields.s.List())
+				list, _ := tt.fields.s.List(context.TODO())
+				fmt.Println(tt.name, list)
 			}
 		})
 	}

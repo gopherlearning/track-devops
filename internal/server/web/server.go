@@ -1,64 +1,89 @@
-package handlers
+package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
-	"github.com/gopherlearning/track-devops/internal/metrics"
-	"github.com/gopherlearning/track-devops/internal/repositories"
+	"github.com/labstack/echo-contrib/pprof"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gopherlearning/track-devops/internal/metrics"
+	"github.com/gopherlearning/track-devops/internal/repositories"
 )
 
-// Handler ...
-type EchoHandler struct {
+type echoServer struct {
 	s     repositories.Repository
 	e     *echo.Echo
 	loger logrus.FieldLogger
 	key   []byte
 }
 
-// NewHandler создаёт новый экземпляр обработчика запросов, привязанный к хранилищу
-func NewEchoHandler(s repositories.Repository, key []byte) Handler {
+// echoServerOptionFunc определяет тип функции для опций.
+type echoServerOptionFunc func(*echoServer)
+
+// WithKey задаёт ключ для подписи
+func WithKey(key []byte) echoServerOptionFunc {
+	return func(c *echoServer) {
+		c.key = key
+	}
+}
+
+// WithLoger set loger
+func WithLoger(loger logrus.FieldLogger) echoServerOptionFunc {
+	return func(c *echoServer) {
+		c.loger = loger
+	}
+}
+
+// WithProf задаёт ключ для подписи
+func WithPprof(usePprof bool) echoServerOptionFunc {
+	return func(c *echoServer) {
+		if usePprof {
+			pprof.Register(c.e)
+		}
+	}
+}
+
+// NewechoServer returns http server
+func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) *echoServer {
 	e := echo.New()
 	// e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	h := &EchoHandler{s: s, e: e, key: key}
-	h.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+	serv := &echoServer{s: s, e: e, loger: logrus.StandardLogger()}
+	serv.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
-	h.e.POST("/update/", h.UpdateMetricJSON)
-	h.e.POST("/updates/", h.UpdatesMetricJSON)
-	h.e.POST("/value/", h.GetMetricJSON)
-	h.e.POST("/update/:type/:name/:value", h.UpdateMetric)
-	h.e.GET("/value/:type/:name", h.GetMetric)
-	h.e.GET("/ping", h.Ping)
-	h.e.GET("/", h.ListMetrics)
-	return h
+	serv.e.POST("/update/", serv.UpdateMetricJSON)
+	serv.e.POST("/updates/", serv.UpdatesMetricJSON)
+	serv.e.POST("/value/", serv.GetMetricJSON)
+	serv.e.POST("/update/:type/:name/:value", serv.UpdateMetric)
+	serv.e.GET("/value/:type/:name", serv.GetMetric)
+	serv.e.GET("/ping", serv.Ping)
+	serv.e.GET("/", serv.ListMetrics)
+	for _, opt := range opts {
+		opt(serv)
+	}
+	return serv
 }
 
-// Echo ...
-func (h *EchoHandler) Echo() *echo.Echo { return h.e }
-
-// Loger ...
-func (h *EchoHandler) Loger() logrus.FieldLogger { return h.loger }
-
-// SetLoger ...
-func (h *EchoHandler) SetLoger(l logrus.FieldLogger) { h.loger = l }
-
 // GetMetric ...
-func (h *EchoHandler) GetMetric(c echo.Context) error {
-	if v := h.s.GetMetric(c.RealIP(), c.Param("type"), c.Param("name")); v != nil {
+func (h *echoServer) GetMetric(c echo.Context) error {
+	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), c.Param("type"), c.Param("name")); v != nil {
 		return c.HTML(http.StatusOK, v.String())
 	}
 	return c.NoContent(http.StatusNotFound)
 }
 
-func (h *EchoHandler) Ping(c echo.Context) error {
+// Ping check storage connection
+func (h *echoServer) Ping(c echo.Context) error {
 	if err := h.s.Ping(c.Request().Context()); err != nil {
 		return c.HTML(http.StatusInternalServerError, err.Error())
 	}
@@ -66,10 +91,14 @@ func (h *EchoHandler) Ping(c echo.Context) error {
 }
 
 // ListMetrics ...
-func (h *EchoHandler) ListMetrics(c echo.Context) error {
+func (h *echoServer) ListMetrics(c echo.Context) error {
 	b := make([]byte, 0)
 	buf := bytes.NewBuffer(b)
-	for target, values := range h.s.List() {
+	list, err := h.s.List(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	for target, values := range list {
 		fmt.Fprintf(buf, `<b>Target "%s":</b></br>`, target)
 		for _, v := range values {
 			fmt.Fprintf(buf, "  %s<br>", v)
@@ -79,7 +108,7 @@ func (h *EchoHandler) ListMetrics(c echo.Context) error {
 }
 
 // UpdateMetric ...
-func (h *EchoHandler) UpdateMetric(c echo.Context) error {
+func (h *echoServer) UpdateMetric(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
 		return c.NoContent(http.StatusNotFound)
 	}
@@ -100,13 +129,12 @@ func (h *EchoHandler) UpdateMetric(c echo.Context) error {
 	default:
 		return c.HTML(http.StatusNotImplemented, repositories.ErrWrongMetricType.Error())
 	}
-	if err := h.s.UpdateMetric(c.RealIP(), m); err != nil {
+	if err := h.s.UpdateMetric(context.TODO(), c.RealIP(), m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
 		case repositories.ErrWrongMetricValue:
 			return c.HTML(http.StatusBadRequest, err.Error())
-		// case repositories.ErrWrongMetricType:
 		case repositories.ErrWrongValueInStorage:
 			return c.HTML(http.StatusNotImplemented, err.Error())
 		default:
@@ -117,7 +145,7 @@ func (h *EchoHandler) UpdateMetric(c echo.Context) error {
 }
 
 // UpdatesMetricJSON ...
-func (h *EchoHandler) UpdatesMetricJSON(c echo.Context) error {
+func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
 		return c.NoContent(http.StatusNotFound)
 	}
@@ -129,7 +157,7 @@ func (h *EchoHandler) UpdatesMetricJSON(c echo.Context) error {
 	mm := []metrics.Metrics{}
 	err := decoder.Decode(&mm)
 	if err != nil {
-		h.Loger().Error(err)
+		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if len(h.key) != 0 {
@@ -142,7 +170,7 @@ func (h *EchoHandler) UpdatesMetricJSON(c echo.Context) error {
 		}
 	}
 
-	if err := h.s.UpdateMetric(c.RealIP(), mm...); err != nil {
+	if err := h.s.UpdateMetric(context.TODO(), c.RealIP(), mm...); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -158,7 +186,7 @@ func (h *EchoHandler) UpdatesMetricJSON(c echo.Context) error {
 }
 
 // UpdateMetricJSON ...
-func (h *EchoHandler) UpdateMetricJSON(c echo.Context) error {
+func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
 		return c.NoContent(http.StatusNotFound)
 	}
@@ -170,7 +198,7 @@ func (h *EchoHandler) UpdateMetricJSON(c echo.Context) error {
 	m := metrics.Metrics{}
 	err := decoder.Decode(&m)
 	if err != nil {
-		h.Loger().Error(err)
+		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if len(h.key) != 0 {
@@ -181,8 +209,7 @@ func (h *EchoHandler) UpdateMetricJSON(c echo.Context) error {
 		}
 	}
 
-	// h.Loger().Infof("%+v"q, &m)
-	if err := h.s.UpdateMetric(c.RealIP(), m); err != nil {
+	if err := h.s.UpdateMetric(context.TODO(), c.RealIP(), m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -194,38 +221,53 @@ func (h *EchoHandler) UpdateMetricJSON(c echo.Context) error {
 			return c.HTML(http.StatusInternalServerError, err.Error())
 		}
 	}
-	// return c.NoContent(http.StatusOK)
 	return c.NoContent(http.StatusOK)
 }
 
 // GetMetricJSON ...
-func (h *EchoHandler) GetMetricJSON(c echo.Context) error {
+func (h *echoServer) GetMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
 		return c.NoContent(http.StatusNotFound)
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
 	}
-
 	decoder := json.NewDecoder(c.Request().Body)
 	defer c.Request().Body.Close()
 	m := metrics.Metrics{}
 	err := decoder.Decode(&m)
 	if err != nil {
-		h.Loger().Error(err)
+		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
-	if v := h.s.GetMetric(c.RealIP(), m.MType, m.ID); v != nil {
+	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), m.MType, m.ID); v != nil {
 
 		if len(h.key) != 0 {
 			err = v.Sign(h.key)
 			if err != nil {
-				h.Loger().Error(err)
+				h.loger.Error(err)
 				return c.String(http.StatusBadRequest, err.Error())
 			}
 		}
 		return c.JSON(http.StatusOK, v)
 	}
-	h.Loger().Warn(m)
 	return c.NoContent(http.StatusNotFound)
+}
+
+// Start http server
+func (h *echoServer) Start(listen string) error {
+	h.e.Server.Addr = listen
+	err := h.e.Server.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+// Stop http server
+func (h *echoServer) Stop() error {
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	defer cancel()
+
+	return h.e.Shutdown(ctx)
 }

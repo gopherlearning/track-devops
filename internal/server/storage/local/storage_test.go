@@ -1,13 +1,15 @@
 package local
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
-	"github.com/gopherlearning/track-devops/internal/metrics"
-	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gopherlearning/track-devops/internal/metrics"
+	"github.com/gopherlearning/track-devops/internal/repositories"
 )
 
 func newStorage(t *testing.T) *Storage {
@@ -21,7 +23,7 @@ func TestStorage_List(t *testing.T) {
 		metrics map[string][]metrics.Metrics
 	}
 	type args struct {
-		targets []string
+		target string
 	}
 	tests := []struct {
 		name   string
@@ -33,7 +35,7 @@ func TestStorage_List(t *testing.T) {
 			name:   "Пустой Storage",
 			fields: fields{metrics: newStorage(t).metrics},
 			args: args{
-				targets: nil,
+				target: "",
 			},
 			want: make(map[string][]string),
 		},
@@ -50,7 +52,7 @@ func TestStorage_List(t *testing.T) {
 				},
 			},
 			args: args{
-				targets: nil,
+				target: "",
 			},
 			want: map[string][]string{
 				"1.1.1.1": {"counter - PollCount - 3"},
@@ -64,7 +66,7 @@ func TestStorage_List(t *testing.T) {
 			s := &Storage{
 				metrics: tt.fields.metrics,
 			}
-			if got := s.List(tt.args.targets...); !reflect.DeepEqual(got, tt.want) {
+			if got, _ := s.List(context.TODO()); !reflect.DeepEqual(got, tt.want) {
 
 				t.Errorf("Storage.List() = %v, want %v", got, tt.want)
 			}
@@ -72,35 +74,6 @@ func TestStorage_List(t *testing.T) {
 		})
 	}
 
-}
-
-func TestStorage_ListProm(t *testing.T) {
-	type fields struct {
-		metrics map[string][]metrics.Metrics
-	}
-	type args struct {
-		targets []string
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []byte
-	}{
-		{
-			name:   "Не реализована",
-			fields: fields{metrics: newStorage(t).metrics},
-			args:   args{targets: nil},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &Storage{
-				metrics: tt.fields.metrics,
-			}
-			assert.Panics(t, func() { s.ListProm(tt.args.targets...) })
-		})
-	}
 }
 
 func TestStorage_Update(t *testing.T) {
@@ -227,7 +200,7 @@ func TestStorage_Update(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.storage.UpdateMetric(tt.args.target, tt.args.metric)
+			err := tt.storage.UpdateMetric(context.TODO(), tt.args.target, tt.args.metric)
 			assert.Equal(t, err, tt.err)
 		})
 	}

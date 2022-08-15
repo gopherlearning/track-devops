@@ -11,8 +11,10 @@ import (
 
 var (
 	ErrNoSuchMetricType = errors.New("нет метрики такого типа")
+	ErrTooSHortKey      = errors.New("слошком короткий ключ")
 )
 
+// Metrics используется для универсального представления метрики
 type Metrics struct {
 	ID    string   `json:"id"`              // имя метрики
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
@@ -44,6 +46,7 @@ func (s Metrics) String() string {
 	}
 }
 
+// StringFull show metric for listing in console
 func (s Metrics) StringFull() string {
 	var hash string
 	if len(s.Hash) != 0 {
@@ -67,6 +70,9 @@ func (s Metrics) StringFull() string {
 
 // MarshalJSON реализует интерфейс json.Marshaler.
 func (s *Metrics) Sign(key []byte) error {
+	if len(key) < 3 {
+		return ErrTooSHortKey
+	}
 	var src []byte
 	switch s.MType {
 	case string(CounterType):
@@ -138,9 +144,12 @@ func (s *Metrics) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// GetInt64Pointer return int64 pointer
 func GetInt64Pointer(val int64) *int64 {
 	return &val
 }
+
+// GetFloat64Pointer return float64 pointer
 func GetFloat64Pointer(val float64) *float64 {
 	return &val
 }

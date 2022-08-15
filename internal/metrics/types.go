@@ -10,27 +10,32 @@ import (
 	"github.com/shirou/gopsutil/mem"
 )
 
+// Metric интерфейс универсальной метрики
 type Metric interface {
 	Name() string
 	Desc() string
 	Type() string
 	String() string
 	Scrape() error
+	// Metrics преобразует в объект для хранения
 	Metrics() Metrics
 }
 
+// Counter целочисленная метрика
 type Counter interface {
 	Metric
 	Set(int64)
 	Get() int64
 }
 
+// Gauge вещественная метрика
 type Gauge interface {
 	Metric
 	Set(float64)
 	Get() float64
 }
 
+// MetricType алиас для типа метрики
 type MetricType string
 
 const (
@@ -75,20 +80,25 @@ func (m PollCount) Desc() string {
 func (m PollCount) Type() string {
 	return "counter"
 }
+
 func (m PollCount) String() string {
 	return fmt.Sprintf("%d", m)
 }
+
 func (m *PollCount) Get() int64 {
 	return int64(*m)
 }
 func (m *PollCount) Set(i int64) {
 	*m = PollCount(i)
 }
+
+// Scrape увеличивает собственное значение на единицу
 func (m *PollCount) Scrape() error {
 	a := *m + 1
 	*m = a
 	return nil
 }
+
 func (m *PollCount) Metrics() Metrics {
 	return Metrics{ID: m.Name(), MType: m.Type(), Delta: GetInt64Pointer(int64(*m))}
 }
@@ -116,6 +126,8 @@ func (m *RandomValue) Get() float64 {
 func (m *RandomValue) Set(i float64) {
 	*m = RandomValue(i)
 }
+
+// Scrape заменяет собственное значение на случайное
 func (m *RandomValue) Scrape() error {
 	rand.Seed(time.Now().Unix())
 	*m = RandomValue(rand.Float64())
