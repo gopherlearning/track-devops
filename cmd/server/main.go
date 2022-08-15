@@ -30,6 +30,9 @@ type Args struct {
 	ShowStore     bool          `help:"Переодически выводить содержимое в консоль"`
 }
 
+// showContent период вывода содержимого хранилища
+const showContent = 5 * time.Second
+
 var args Args
 
 func init() {
@@ -81,7 +84,7 @@ func main() {
 	// Периодический вывод содержимого хранилища
 	if args.ShowStore {
 		go func() {
-			ticker := time.NewTicker(5 * time.Second)
+			ticker := time.NewTicker(showContent)
 			for {
 				<-ticker.C
 
