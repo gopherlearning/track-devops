@@ -61,6 +61,22 @@ func (s *Storage) Close(ctx context.Context) error {
 	return nil
 }
 
+// Ping check connection
+func (s *Storage) Ping(ctx context.Context) error {
+	ctx_, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	ping := make(chan error)
+	go func() {
+		ping <- s.db.Ping(ctx_)
+	}()
+	select {
+	case err := <-ping:
+		return err
+	case <-ctx_.Done():
+		return fmt.Errorf("context closed")
+	}
+}
+
 // GetMetric ...
 func (s *Storage) GetMetric(ctx context.Context, target string, mType string, name string) (*metrics.Metrics, error) {
 	var hash string

@@ -66,6 +66,7 @@ func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) *ech
 	serv.e.POST("/value/", serv.GetMetricJSON)
 	serv.e.POST("/update/:type/:name/:value", serv.UpdateMetric)
 	serv.e.GET("/value/:type/:name", serv.GetMetric)
+	serv.e.GET("/ping", serv.Ping)
 	serv.e.GET("/", serv.ListMetrics)
 	for _, opt := range opts {
 		opt(serv)
@@ -79,6 +80,14 @@ func (h *echoServer) GetMetric(c echo.Context) error {
 		return c.HTML(http.StatusOK, v.String())
 	}
 	return c.NoContent(http.StatusNotFound)
+}
+
+// Ping check storage connection
+func (h *echoServer) Ping(c echo.Context) error {
+	if err := h.s.Ping(c.Request().Context()); err != nil {
+		return c.HTML(http.StatusInternalServerError, err.Error())
+	}
+	return c.NoContent(http.StatusOK)
 }
 
 // ListMetrics ...

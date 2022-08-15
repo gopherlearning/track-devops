@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -24,6 +25,7 @@ func TestServer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewEchoServer(newStorage(t))
+			require.NoError(t, s.s.Ping(context.TODO()))
 			require.NotNil(t, s)
 			wg := sync.WaitGroup{}
 			wg.Add(2)
@@ -44,4 +46,5 @@ func TestServer(t *testing.T) {
 
 		})
 	}
+
 }

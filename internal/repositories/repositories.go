@@ -12,4 +12,5 @@ type Repository interface {
 	UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) error
 	Metrics(ctx context.Context, target string) (map[string][]metrics.Metrics, error)
 	List(ctx context.Context) (map[string][]string, error)
+	Ping(context.Context) error
 }

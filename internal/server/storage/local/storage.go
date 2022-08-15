@@ -93,6 +93,11 @@ func (s *Storage) GetMetric(ctx context.Context, target, mtype, name string) (*m
 	return nil, nil
 }
 
+// Ping заглушка
+func (s *Storage) Ping(context.Context) error {
+	return nil
+}
+
 // UpdateMetric ...
 func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) error {
 	s.mu.Lock()
