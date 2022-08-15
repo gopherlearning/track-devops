@@ -90,7 +90,9 @@ func TestMetrics(t *testing.T) {
 			assert.Equal(t, tt.wantType, tt.m.Type())
 		})
 	}
+}
 
+func TestStore(t *testing.T) {
 	m := NewStore([]byte("secret"))
 	m.AddCustom(
 		new(PollCount),
