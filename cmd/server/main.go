@@ -24,7 +24,7 @@ type Args struct {
 	StoreInterval time.Duration `short:"i" help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s"`
 	StoreFile     string        `short:"f" help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json"`
 	Restore       bool          `short:"r" help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true"`
-	DatabaseDSN   string        `short:"d" help:"трока с адресом подключения к БД" env:"DATABASE_DSN"`
+	DatabaseDSN   string        `short:"d" help:"строка с адресом подключения к БД" env:"DATABASE_DSN"`
 	Key           string        `short:"k" help:"Ключ подписи" env:"KEY"`
 	UsePprof      bool          `help:"Использовать Pprof" env:"PPROF"`
 	ShowStore     bool          `help:"Переодически выводить содержимое в консоль"`
