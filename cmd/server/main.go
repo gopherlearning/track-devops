@@ -86,7 +86,7 @@ func main() {
 				<-ticker.C
 
 				fmt.Println("==============================")
-				list, err := store.List()
+				list, err := store.List(context.Background())
 				if err != nil {
 					logrus.Error(err)
 					continue

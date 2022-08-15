@@ -52,7 +52,7 @@ func TestEchoHandler_Get(t *testing.T) {
 			s := newStorage(t)
 			if len(tt.want) != 0 {
 				m := strings.Split(tt.request, "/")
-				require.NoError(t, s.UpdateMetric(context.Background(), tt.target, metrics.Metrics{MType: m[2], ID: m[3], Delta: metrics.GetInt64Pointer(tt.value["counter"].(int64)), Value: metrics.GetFloat64Pointer(tt.value["gauge"].(float64))}))
+				require.NoError(t, s.UpdateMetric(context.TODO(), tt.target, metrics.Metrics{MType: m[2], ID: m[3], Delta: metrics.GetInt64Pointer(tt.value["counter"].(int64)), Value: metrics.GetFloat64Pointer(tt.value["gauge"].(float64))}))
 			}
 			handler := NewEchoServer(s)
 			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
@@ -252,7 +252,7 @@ func TestEchoHandler_Update(t *testing.T) {
 
 			match := rMetricURL.FindStringSubmatch(tt.request1)
 			require.Equal(t, len(match), 4)
-			list, _ := tt.fields.s.List()
+			list, _ := tt.fields.s.List(context.TODO())
 			assert.Contains(t, list["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value1))
 			fmt.Println(tt.name, list)
 
@@ -274,7 +274,7 @@ func TestEchoHandler_Update(t *testing.T) {
 			if result.StatusCode == http.StatusOK {
 				match := rMetricURL.FindStringSubmatch(tt.request1)
 				assert.Equal(t, len(match), 4)
-				list, _ := tt.fields.s.List()
+				list, _ := tt.fields.s.List(context.TODO())
 				assert.Contains(t, list["192.0.2.1"], fmt.Sprintf("%s - %s - %v", match[1], match[2], tt.want.value2))
 				fmt.Println(tt.name, list)
 			}
@@ -383,7 +383,7 @@ func TestEchoHandlerJSON(t *testing.T) {
 			assert.Equal(t, tt.want.resp2, string(body))
 
 			if result.StatusCode == http.StatusOK {
-				list, _ := tt.fields.s.List()
+				list, _ := tt.fields.s.List(context.TODO())
 				fmt.Println(tt.name, list)
 			}
 		})

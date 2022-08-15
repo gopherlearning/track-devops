@@ -66,7 +66,6 @@ func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) *ech
 	serv.e.POST("/value/", serv.GetMetricJSON)
 	serv.e.POST("/update/:type/:name/:value", serv.UpdateMetric)
 	serv.e.GET("/value/:type/:name", serv.GetMetric)
-	serv.e.GET("/ping", serv.Ping)
 	serv.e.GET("/", serv.ListMetrics)
 	for _, opt := range opts {
 		opt(serv)
@@ -76,25 +75,17 @@ func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) *ech
 
 // GetMetric ...
 func (h *echoServer) GetMetric(c echo.Context) error {
-	if v, _ := h.s.GetMetric(c.RealIP(), c.Param("type"), c.Param("name")); v != nil {
+	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), c.Param("type"), c.Param("name")); v != nil {
 		return c.HTML(http.StatusOK, v.String())
 	}
 	return c.NoContent(http.StatusNotFound)
-}
-
-// Ping check storage connection
-func (h *echoServer) Ping(c echo.Context) error {
-	if err := h.s.Ping(c.Request().Context()); err != nil {
-		return c.HTML(http.StatusInternalServerError, err.Error())
-	}
-	return c.NoContent(http.StatusOK)
 }
 
 // ListMetrics ...
 func (h *echoServer) ListMetrics(c echo.Context) error {
 	b := make([]byte, 0)
 	buf := bytes.NewBuffer(b)
-	list, err := h.s.List()
+	list, err := h.s.List(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -129,7 +120,7 @@ func (h *echoServer) UpdateMetric(c echo.Context) error {
 	default:
 		return c.HTML(http.StatusNotImplemented, repositories.ErrWrongMetricType.Error())
 	}
-	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), m); err != nil {
+	if err := h.s.UpdateMetric(context.TODO(), c.RealIP(), m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -170,7 +161,7 @@ func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 		}
 	}
 
-	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), mm...); err != nil {
+	if err := h.s.UpdateMetric(context.TODO(), c.RealIP(), mm...); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -209,7 +200,7 @@ func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 		}
 	}
 
-	if err := h.s.UpdateMetric(context.Background(), c.RealIP(), m); err != nil {
+	if err := h.s.UpdateMetric(context.TODO(), c.RealIP(), m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -240,7 +231,7 @@ func (h *echoServer) GetMetricJSON(c echo.Context) error {
 		h.loger.Error(err)
 		return c.String(http.StatusBadRequest, err.Error())
 	}
-	if v, _ := h.s.GetMetric(c.RealIP(), m.MType, m.ID); v != nil {
+	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), m.MType, m.ID); v != nil {
 
 		if len(h.key) != 0 {
 			err = v.Sign(h.key)
@@ -266,7 +257,7 @@ func (h *echoServer) Start(listen string) error {
 
 // Stop http server
 func (h *echoServer) Stop() error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
 	defer cancel()
 
 	return h.e.Shutdown(ctx)

@@ -60,14 +60,9 @@ func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string)
 	return s, nil
 }
 
-// Ping заглушка
-func (s *Storage) Ping(context.Context) error {
-	return nil
-}
-
 // Save perform dump of storage to disk
 func (s *Storage) Save() error {
-	m, _ := s.Metrics("")
+	m, _ := s.Metrics(context.Background(), "")
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
@@ -84,7 +79,7 @@ func (s *Storage) Save() error {
 }
 
 // GetMetric ...
-func (s *Storage) GetMetric(target, mtype, name string) (*metrics.Metrics, error) {
+func (s *Storage) GetMetric(ctx context.Context, target, mtype, name string) (*metrics.Metrics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if _, ok := s.metrics[target]; ok {
@@ -136,7 +131,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 }
 
 // Metrics returns metrics view of stored metrics
-func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {
+func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metrics.Metrics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	res := make(map[string][]metrics.Metrics)
@@ -152,7 +147,7 @@ func (s *Storage) Metrics(target string) (map[string][]metrics.Metrics, error) {
 }
 
 // List all metrics for all targets
-func (s *Storage) List() (map[string][]string, error) {
+func (s *Storage) List(ctx context.Context) (map[string][]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	res := make(map[string][]string)
@@ -169,8 +164,4 @@ func (s *Storage) List() (map[string][]string, error) {
 		}
 	}
 	return res, nil
-}
-
-func (s *Storage) ListProm(targets ...string) ([]byte, error) {
-	panic("not implemented") // TODO: Implement
 }
