@@ -3,7 +3,7 @@ package migrate
 import (
 	"context"
 	"embed"
-	"io/ioutil"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -37,7 +37,7 @@ func MigrateFromDir(ctx context.Context, db *pgx.Conn, migrationDir string, loge
 		return err
 	}
 
-	files, err := ioutil.ReadDir(migrationDir)
+	files, err := os.ReadDir(migrationDir)
 	if err != nil {
 		err = tx.Rollback(ctx)
 		if err != nil {
@@ -79,7 +79,7 @@ func MigrateFromDir(ctx context.Context, db *pgx.Conn, migrationDir string, loge
 			continue
 		}
 
-		script, err := ioutil.ReadFile(filePath)
+		script, err := os.ReadFile(filePath)
 		if err != nil {
 			err = tx.Rollback(ctx)
 			if err != nil {

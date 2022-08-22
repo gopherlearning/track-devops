@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -60,7 +60,7 @@ func TestEchoHandler_Get(t *testing.T) {
 			result := w.Result()
 
 			assert.Equal(t, tt.status, result.StatusCode)
-			body, err := ioutil.ReadAll(result.Body)
+			body, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
 			err = result.Body.Close()
 			require.NoError(t, err)
@@ -238,7 +238,7 @@ func TestEchoHandler_Update(t *testing.T) {
 			result := w.Result()
 
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
-			body, err := ioutil.ReadAll(result.Body)
+			body, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
 			err = result.Body.Close()
 			require.NoError(t, err)
@@ -263,7 +263,7 @@ func TestEchoHandler_Update(t *testing.T) {
 			result = w.Result()
 
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
-			body, err = ioutil.ReadAll(result.Body)
+			body, err = io.ReadAll(result.Body)
 			require.NoError(t, err)
 			err = result.Body.Close()
 			require.NoError(t, err)
@@ -367,7 +367,7 @@ func TestEchoHandlerJSON(t *testing.T) {
 			result := w.Result()
 
 			assert.Equal(t, tt.want.statusCode1, result.StatusCode)
-			body, err := ioutil.ReadAll(result.Body)
+			body, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
 			err = result.Body.Close()
 			require.NoError(t, err)
@@ -386,7 +386,7 @@ func TestEchoHandlerJSON(t *testing.T) {
 			result = w.Result()
 
 			require.Equal(t, tt.want.statusCode2, result.StatusCode)
-			body, err = ioutil.ReadAll(result.Body)
+			body, err = io.ReadAll(result.Body)
 			require.NoError(t, err)
 			err = result.Body.Close()
 			require.NoError(t, err)

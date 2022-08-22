@@ -2,7 +2,7 @@ package local
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -20,7 +20,7 @@ func newStorage(t *testing.T) *Storage {
 	return s
 }
 func TestStorage_List(t *testing.T) {
-	tmp, err := ioutil.TempFile("/tmp", "go_test")
+	tmp, err := os.CreateTemp("/tmp", "go_test")
 	assert.NoError(t, err)
 	assert.FileExists(t, tmp.Name())
 	storeInt := time.Second

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 	"sync"
@@ -35,7 +34,7 @@ func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string)
 	}
 	if restore && storeFile != nil {
 		if _, err := os.Stat(s.storeFile); err == nil {
-			data, err := ioutil.ReadFile(s.storeFile)
+			data, err := os.ReadFile(s.storeFile)
 			if err != nil {
 				return nil, err
 			}
@@ -71,7 +70,7 @@ func (s *Storage) Save() error {
 		logrus.Infof("Эмуляция сохранения:\n%s", string(data))
 		return nil
 	}
-	err = ioutil.WriteFile(s.storeFile, data, 0644)
+	err = os.WriteFile(s.storeFile, data, 0644)
 	if err != nil {
 		return err
 	}

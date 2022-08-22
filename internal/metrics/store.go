@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -187,7 +186,7 @@ func (s *store) Save(ctx context.Context, client *http.Client, baseURL *string, 
 
 					if resp.StatusCode != http.StatusOK {
 						var body []byte
-						body, err = ioutil.ReadAll(resp.Body)
+						body, err = io.ReadAll(resp.Body)
 						if err != nil || emulateError {
 							if err == nil {
 								err = errors.New("emulateError")
@@ -257,7 +256,7 @@ func sendMetric(ctx context.Context, errC chan error, c *http.Client, url string
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		var body []byte
-		body, err = ioutil.ReadAll(resp.Body)
+		body, err = io.ReadAll(resp.Body)
 		if err != nil || emulateError {
 			if err == nil {
 				err = errors.New("emulateError")
@@ -299,7 +298,7 @@ func sendMetrics(ctx context.Context, c *http.Client, url string, metrics []Metr
 
 	if resp.StatusCode != http.StatusOK {
 		var body []byte
-		body, err = ioutil.ReadAll(resp.Body)
+		body, err = io.ReadAll(resp.Body)
 		if err != nil || emulateError {
 			if err == nil {
 				err = errors.New("emulateError")
