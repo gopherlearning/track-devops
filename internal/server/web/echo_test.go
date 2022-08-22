@@ -22,13 +22,12 @@ import (
 
 func TestEchoHandler_Get(t *testing.T) {
 	tests := []struct {
-		name string
-		// fields  fields
-		request string
-		status  int
-		target  string
 		value   map[string]interface{}
+		name    string
+		request string
+		target  string
 		want    string
+		status  int
 	}{
 		{
 			name:    "Существующее значение",
@@ -77,10 +76,10 @@ func TestEchoHandler_Update(t *testing.T) {
 		s repositories.Repository
 	}
 	type want struct {
-		statusCode int
-		body       string
 		value1     interface{}
 		value2     interface{}
+		body       string
+		statusCode int
 	}
 	tests := []struct {
 		name     string
@@ -291,20 +290,20 @@ func TestEchoHandlerJSON(t *testing.T) {
 		s repositories.Repository
 	}
 	type want struct {
-		statusCode1 int
-		statusCode2 int
 		resp1       interface{}
 		resp2       interface{}
+		statusCode1 int
+		statusCode2 int
 	}
 	tests := []struct {
 		name     string
-		fields   fields
 		content  string
 		request1 string
 		request2 string
 		body1    string
 		body2    string
 		method   string
+		fields   fields
 		want     want
 	}{
 		{
@@ -321,6 +320,18 @@ func TestEchoHandlerJSON(t *testing.T) {
 				resp1:       ``,
 				statusCode2: http.StatusOK,
 				resp2:       `{"id":"PollCount","type":"counter","delta":1}` + "\n",
+			},
+		},
+		{
+			name:     "TestErrorMethod",
+			fields:   fields{s: newStorage(t)},
+			content:  "application/json",
+			method:   http.MethodGet,
+			request1: "/update/",
+			body1:    ``,
+			want: want{
+				statusCode1: http.StatusMethodNotAllowed,
+				resp1:       `{"message":"Method Not Allowed"}` + "\n",
 			},
 		},
 		{

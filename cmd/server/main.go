@@ -21,13 +21,13 @@ import (
 
 type Args struct {
 	ServerAddr    string        `short:"a" help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
-	StoreInterval time.Duration `short:"i" help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s"`
 	StoreFile     string        `short:"f" help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json"`
-	Restore       bool          `short:"r" help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true"`
 	DatabaseDSN   string        `short:"d" help:"строка с адресом подключения к БД" env:"DATABASE_DSN"`
 	Key           string        `short:"k" help:"Ключ подписи" env:"KEY"`
+	Restore       bool          `short:"r" help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE" default:"true"`
 	UsePprof      bool          `help:"Использовать Pprof" env:"PPROF"`
 	ShowStore     bool          `help:"Переодически выводить содержимое в консоль"`
+	StoreInterval time.Duration `short:"i" help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s"`
 }
 
 // showContent период вывода содержимого хранилища
@@ -55,8 +55,9 @@ func init() {
 
 func main() {
 	logrus.SetReportCaller(true)
+	var err error
 	kong.Parse(&args)
-	err := env.Parse(&args)
+	err = env.Parse(&args)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -89,7 +90,8 @@ func main() {
 				<-ticker.C
 
 				fmt.Println("==============================")
-				list, err := store.List(context.Background())
+				var list map[string][]string
+				list, err = store.List(context.Background())
 				if err != nil {
 					logrus.Error(err)
 					continue
@@ -104,7 +106,7 @@ func main() {
 		}()
 	}
 	go func() {
-		err := s.Start(args.ServerAddr)
+		err = s.Start(args.ServerAddr)
 		if err != nil {
 			logrus.Error(err)
 		}

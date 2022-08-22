@@ -39,3 +39,10 @@ curl -sK -v http://localhost:1212/debug/pprof/profile > profiles/base.pprof
 curl -sK -v http://localhost:1212/debug/pprof/profile > profiles/result.pprof
 
 ```
+
+### Запуск multichecker
+```bash
+
+go run cmd/staticlint/main.go ./..
+
+```

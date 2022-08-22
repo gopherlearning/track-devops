@@ -110,7 +110,7 @@ func (h *echoServer) ListMetrics(c echo.Context) error {
 // UpdateMetric ...
 func (h *echoServer) UpdateMetric(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusNotFound)
+		return c.NoContent(http.StatusMethodNotAllowed)
 	}
 	m := metrics.Metrics{MType: c.Param("type"), ID: c.Param("name")}
 	switch c.Param("type") {
@@ -147,7 +147,7 @@ func (h *echoServer) UpdateMetric(c echo.Context) error {
 // UpdatesMetricJSON ...
 func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusNotFound)
+		return c.NoContent(http.StatusMethodNotAllowed)
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
@@ -188,7 +188,7 @@ func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 // UpdateMetricJSON ...
 func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusNotFound)
+		return c.NoContent(http.StatusMethodNotAllowed)
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
@@ -227,7 +227,7 @@ func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 // GetMetricJSON ...
 func (h *echoServer) GetMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusNotFound)
+		return c.NoContent(http.StatusMethodNotAllowed)
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")

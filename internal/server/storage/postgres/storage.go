@@ -207,7 +207,7 @@ func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metr
 		var mtype string
 		var mdelta int64
 		var mvalue float64
-		err := rows.Scan(&target, &id, &hash, &mtype, &mdelta, &mvalue)
+		err = rows.Scan(&target, &id, &hash, &mtype, &mdelta, &mvalue)
 		if err != nil {
 			s.loger.Error(err)
 			return nil, err

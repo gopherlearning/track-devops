@@ -2,8 +2,10 @@ package local
 
 import (
 	"context"
+	"io/ioutil"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +20,20 @@ func newStorage(t *testing.T) *Storage {
 	return s
 }
 func TestStorage_List(t *testing.T) {
+	tmp, err := ioutil.TempFile("/tmp", "go_test")
+	assert.NoError(t, err)
+	assert.FileExists(t, tmp.Name())
+	storeInt := time.Second
+	st, err := NewStorage(false, &storeInt, tmp.Name())
+	assert.NoError(t, err)
+	assert.NotNil(t, st)
+	assert.NoError(t, st.Save())
 
+	st, err = NewStorage(true, &storeInt, tmp.Name())
+	assert.NoError(t, err)
+	assert.NotNil(t, st)
+	assert.NoError(t, st.Save())
+	time.Sleep(2 * time.Second)
 	type fields struct {
 		metrics map[string][]metrics.Metrics
 	}
@@ -27,9 +42,9 @@ func TestStorage_List(t *testing.T) {
 	}
 	tests := []struct {
 		name   string
+		want   map[string][]string
 		fields fields
 		args   args
-		want   map[string][]string
 	}{
 		{
 			name:   "Пустой Storage",
@@ -82,10 +97,10 @@ func TestStorage_Update(t *testing.T) {
 		metric metrics.Metrics
 	}
 	tests := []struct {
-		name    string
 		storage *Storage
 		args    args
 		err     error
+		name    string
 		wantErr bool
 	}{
 		{
@@ -204,4 +219,5 @@ func TestStorage_Update(t *testing.T) {
 			assert.Equal(t, err, tt.err)
 		})
 	}
+
 }

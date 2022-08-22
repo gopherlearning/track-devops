@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -9,6 +10,9 @@ import (
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
 )
+
+// EmulateError needs for test coverage
+var emulateError bool
 
 // Metric интерфейс универсальной метрики
 type Metric interface {
@@ -162,7 +166,10 @@ func (m *TotalMemory) Set(i float64) {
 }
 func (m *TotalMemory) Scrape() error {
 	v, err := mem.VirtualMemory()
-	if err != nil {
+	if err != nil || emulateError {
+		if err == nil {
+			err = errors.New("emulateError")
+		}
 		return err
 	}
 	*m = TotalMemory(float64(v.Total))
@@ -197,7 +204,10 @@ func (m *FreeMemory) Set(i float64) {
 }
 func (m *FreeMemory) Scrape() error {
 	v, err := mem.VirtualMemory()
-	if err != nil {
+	if err != nil || emulateError {
+		if err == nil {
+			err = errors.New("emulateError")
+		}
 		return err
 	}
 	*m = FreeMemory(float64(v.Free))
@@ -231,8 +241,12 @@ func (m *CPUutilization1) Set(i float64) {
 	*m = CPUutilization1(i)
 }
 func (m *CPUutilization1) Scrape() error {
+
 	c, err := cpu.Percent(time.Second, false)
-	if err != nil {
+	if err != nil || emulateError {
+		if err == nil {
+			err = errors.New("emulateError")
+		}
 		return err
 	}
 	var sum float64

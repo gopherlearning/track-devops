@@ -29,11 +29,11 @@ func MigrateFromDir(ctx context.Context, db *pgx.Conn, migrationDir string, loge
 			modified_at timestamp not null
 		);
 	`
-	if _, err := tx.Exec(ctx, createMigrationTable); err != nil {
+	if _, err = tx.Exec(ctx, createMigrationTable); err != nil {
 		return err
 	}
 
-	if _, err := tx.Exec(ctx, `LOCK TABLE migration;`); err != nil {
+	if _, err = tx.Exec(ctx, `LOCK TABLE migration;`); err != nil {
 		return err
 	}
 
@@ -62,8 +62,8 @@ func MigrateFromDir(ctx context.Context, db *pgx.Conn, migrationDir string, loge
 		r := tx.QueryRow(ctx, `SELECT id, modified_at FROM migration WHERE id = $1;`, fileName)
 
 		type migrationItem struct {
-			ID         string
 			ModifiedAt time.Time
+			ID         string
 		}
 
 		mi := &migrationItem{}
@@ -130,11 +130,11 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 			modified_at timestamp not null
 		);
 	`
-	if _, err := tx.Exec(ctx, createMigrationTable); err != nil {
+	if _, err = tx.Exec(ctx, createMigrationTable); err != nil {
 		return err
 	}
 
-	if _, err := tx.Exec(ctx, `LOCK TABLE migration;`); err != nil {
+	if _, err = tx.Exec(ctx, `LOCK TABLE migration;`); err != nil {
 		return err
 	}
 	files, err := migrations.ReadDir(".")
@@ -155,12 +155,12 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 		fileName := f.Name()
 		r := tx.QueryRow(ctx, `SELECT id, modified_at FROM migration WHERE id = $1;`, fileName)
 		type migrationItem struct {
-			ID         string
 			ModifiedAt time.Time
+			ID         string
 		}
 
 		mi := &migrationItem{}
-		err := r.Scan(&mi.ID, &mi.ModifiedAt)
+		err = r.Scan(&mi.ID, &mi.ModifiedAt)
 
 		if err != nil && err != pgx.ErrNoRows {
 			err = tx.Rollback(ctx)
@@ -172,8 +172,8 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 		} else if err == nil {
 			continue
 		}
-
-		script, err := migrations.ReadFile(fileName)
+		var script []byte
+		script, err = migrations.ReadFile(fileName)
 		if err != nil {
 			err = tx.Rollback(ctx)
 			if err != nil {

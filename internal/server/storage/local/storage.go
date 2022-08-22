@@ -20,9 +20,9 @@ var _ repositories.Repository = (*Storage)(nil)
 
 // Storage inmemory storage
 type Storage struct {
-	mu        sync.RWMutex
-	storeFile string
 	metrics   map[string][]metrics.Metrics
+	storeFile string
+	mu        sync.RWMutex
 }
 
 // NewStorage inmemory storage
