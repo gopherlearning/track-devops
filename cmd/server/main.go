@@ -19,6 +19,12 @@ import (
 	"github.com/gopherlearning/track-devops/internal/server/web"
 )
 
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
+
 type Args struct {
 	ServerAddr    string        `short:"a" help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
 	StoreFile     string        `short:"f" help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json"`
@@ -54,6 +60,9 @@ func init() {
 }
 
 func main() {
+	// Printing build options.
+	fmt.Printf("Build version:%s \nBuild date:%s \nBuild commit:%s \n", buildVersion, buildDate, buildCommit)
+
 	logrus.SetReportCaller(true)
 	var err error
 	kong.Parse(&args)

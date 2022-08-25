@@ -18,6 +18,11 @@ import (
 	"github.com/gopherlearning/track-devops/internal/metrics"
 )
 
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
 var args struct {
 	ServerAddr     string        `short:"a" help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
 	Key            string        `short:"k" help:"Ключ подписи" env:"KEY"`
@@ -39,6 +44,9 @@ func init() {
 }
 
 func main() {
+	// Printing build options.
+	fmt.Printf("Build version:%s \nBuild date:%s \nBuild commit:%s \n", buildVersion, buildDate, buildCommit)
+
 	kong.Parse(&args)
 	err := env.Parse(&args)
 	if err != nil {
