@@ -17,7 +17,7 @@ import (
 )
 
 func newStorage(t *testing.T) *Storage {
-	s, err := NewStorage(false, nil)
+	s, err := NewStorage(false, nil, zap.L())
 	require.NoError(t, err)
 	return s
 }
