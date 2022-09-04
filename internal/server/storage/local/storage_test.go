@@ -1,5 +1,3 @@
-//go:build linux
-
 package local
 
 import (
@@ -11,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
@@ -22,16 +21,16 @@ func newStorage(t *testing.T) *Storage {
 	return s
 }
 func TestStorage_List(t *testing.T) {
-	tmp, err := os.CreateTemp("/tmp", "go_test")
+	tmp, err := os.CreateTemp(os.TempDir(), "go_test")
 	assert.NoError(t, err)
 	assert.FileExists(t, tmp.Name())
 	storeInt := time.Second
-	st, err := NewStorage(false, &storeInt, tmp.Name())
+	st, err := NewStorage(false, &storeInt, zap.L(), tmp.Name())
 	assert.NoError(t, err)
 	assert.NotNil(t, st)
 	assert.NoError(t, st.Save())
 
-	st, err = NewStorage(true, &storeInt, tmp.Name())
+	st, err = NewStorage(true, &storeInt, zap.L(), tmp.Name())
 	assert.NoError(t, err)
 	assert.NotNil(t, st)
 	assert.NoError(t, st.Save())
