@@ -8,7 +8,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/caarlos0/env/v6"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal"
 	"github.com/gopherlearning/track-devops/internal/server/storage"
@@ -19,52 +19,53 @@ var (
 	buildVersion = "N/A"
 	buildDate    = "N/A"
 	buildCommit  = "N/A"
+	logger       *zap.Logger
 )
 
 var args internal.ServerArgs
 
 func init() {
 	internal.FixServerArgs()
+	logger = internal.InitLogger(args.Verbose)
 }
 
 func main() {
 	// Printing build options.
-	fmt.Printf("Build version:%s \nBuild date:%s \nBuild commit:%s \n", buildVersion, buildDate, buildCommit)
+	fmt.Printf("Build version: %s \nBuild date: %s \nBuild commit: %s \n", buildVersion, buildDate, buildCommit)
 
-	logrus.SetReportCaller(true)
 	var err error
 	kong.Parse(&args)
 	err = env.Parse(&args)
 	if err != nil {
-		logrus.Fatal(err)
+		logger.Fatal(err.Error())
 	}
-	logrus.Infof("%+v", args)
-	store, err := storage.InitStorage(args)
+	logger.Info("Command arguments", zap.Any("agrs", args))
+	store, err := storage.InitStorage(args, logger)
 	if err != nil {
-		logrus.Fatal(err)
+		logger.Fatal(err.Error())
 	}
-	s := web.NewEchoServer(store, web.WithKey([]byte(args.Key)), web.WithPprof(args.UsePprof), web.WithLoger(logrus.StandardLogger()))
+	s := web.NewEchoServer(store, web.WithKey([]byte(args.Key)), web.WithPprof(args.UsePprof), web.WithLogger(logger))
 
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
 	if args.ShowStore {
-		go internal.ShowStore(store)
+		go internal.ShowStore(store, logger)
 	}
 	go func() {
 		err = s.Start(args.ServerAddr)
 		if err != nil {
-			logrus.Error(err)
+			logger.Error(err.Error())
 		}
 	}()
 	sig := <-terminate
 	err = s.Stop()
 	if err != nil {
-		logrus.Error(err)
+		logger.Error(err.Error())
 	}
 	err = storage.CloseStorage(args, store)
 	if err != nil {
-		logrus.Error(err)
+		logger.Error(err.Error())
 	}
-	logrus.Infof("Server stoped by signal \"%v\"\n", sig)
+	logger.Info(fmt.Sprintf("Server stoped by signal \"%v\"", sig))
 }

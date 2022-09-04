@@ -13,17 +13,17 @@ import (
 	"github.com/labstack/echo-contrib/pprof"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
 )
 
 type echoServer struct {
-	s     repositories.Repository
-	e     *echo.Echo
-	loger logrus.FieldLogger
-	key   []byte
+	s      repositories.Repository
+	e      *echo.Echo
+	logger *zap.Logger
+	key    []byte
 }
 
 // echoServerOptionFunc определяет тип функции для опций.
@@ -36,10 +36,10 @@ func WithKey(key []byte) echoServerOptionFunc {
 	}
 }
 
-// WithLoger set loger
-func WithLoger(loger logrus.FieldLogger) echoServerOptionFunc {
+// WithLogger set logger
+func WithLogger(logger *zap.Logger) echoServerOptionFunc {
 	return func(c *echoServer) {
-		c.loger = loger
+		c.logger = logger
 	}
 }
 
@@ -57,7 +57,8 @@ func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) *ech
 	e := echo.New()
 	// e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	serv := &echoServer{s: s, e: e, loger: logrus.StandardLogger()}
+	logger, _ := zap.NewDevelopment()
+	serv := &echoServer{s: s, e: e, logger: logger}
 	serv.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
@@ -157,7 +158,7 @@ func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 	mm := []metrics.Metrics{}
 	err := decoder.Decode(&mm)
 	if err != nil {
-		h.loger.Error(err)
+		h.logger.Error(err.Error())
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if len(h.key) != 0 {
@@ -198,7 +199,7 @@ func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 	m := metrics.Metrics{}
 	err := decoder.Decode(&m)
 	if err != nil {
-		h.loger.Error(err)
+		h.logger.Error(err.Error())
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if len(h.key) != 0 {
@@ -237,7 +238,7 @@ func (h *echoServer) GetMetricJSON(c echo.Context) error {
 	m := metrics.Metrics{}
 	err := decoder.Decode(&m)
 	if err != nil {
-		h.loger.Error(err)
+		h.logger.Error(err.Error())
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), m.MType, m.ID); v != nil {
@@ -245,7 +246,7 @@ func (h *echoServer) GetMetricJSON(c echo.Context) error {
 		if len(h.key) != 0 {
 			err = v.Sign(h.key)
 			if err != nil {
-				h.loger.Error(err)
+				h.logger.Error(err.Error())
 				return c.String(http.StatusBadRequest, err.Error())
 			}
 		}

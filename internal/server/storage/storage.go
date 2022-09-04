@@ -7,17 +7,17 @@ import (
 	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/gopherlearning/track-devops/internal/server/storage/local"
 	"github.com/gopherlearning/track-devops/internal/server/storage/postgres"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
-func InitStorage(args internal.ServerArgs) (store repositories.Repository, err error) {
+func InitStorage(args internal.ServerArgs, logger *zap.Logger) (store repositories.Repository, err error) {
 	if len(args.DatabaseDSN) != 0 {
-		store, err = postgres.NewStorage(args.DatabaseDSN, logrus.StandardLogger())
+		store, err = postgres.NewStorage(args.DatabaseDSN, logger)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		store, err = local.NewStorage(args.Restore, &args.StoreInterval, args.StoreFile)
+		store, err = local.NewStorage(args.Restore, &args.StoreInterval, logger, args.StoreFile)
 		if err != nil {
 			return nil, err
 		}

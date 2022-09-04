@@ -11,13 +11,13 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 // MigrateFromDir executes database migrations
-func MigrateFromDir(ctx context.Context, db *pgx.Conn, migrationDir string, loger logrus.FieldLogger) error {
-	if loger == nil {
-		loger = logrus.StandardLogger()
+func MigrateFromDir(ctx context.Context, db *pgx.Conn, migrationDir string, logger *zap.Logger) error {
+	if logger == nil {
+		logger, _ = zap.NewDevelopment()
 	}
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -87,7 +87,7 @@ func MigrateFromDir(ctx context.Context, db *pgx.Conn, migrationDir string, loge
 			}
 			return err
 		}
-		loger.Info(string(script))
+		logger.Info(string(script))
 		if _, err := tx.Exec(ctx, string(script)); err != nil {
 			err = tx.Rollback(ctx)
 			if err != nil {
@@ -116,9 +116,9 @@ type PgxIface interface {
 }
 
 // MigrateFromFS executes database migrations from emdebed files
-func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, loger logrus.FieldLogger) error {
-	if loger == nil {
-		loger = logrus.StandardLogger()
+func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, logger *zap.Logger) error {
+	if logger == nil {
+		logger, _ = zap.NewDevelopment()
 	}
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -141,7 +141,7 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 	if err != nil {
 		err = tx.Rollback(ctx)
 		if err != nil {
-			loger.Error(err)
+			logger.Error(err.Error())
 			return err
 		}
 		return err
@@ -165,7 +165,7 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 		if err != nil && err != pgx.ErrNoRows {
 			err = tx.Rollback(ctx)
 			if err != nil {
-				loger.Error(err)
+				logger.Error(err.Error())
 				return err
 			}
 			return err
@@ -177,17 +177,17 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 		if err != nil {
 			err = tx.Rollback(ctx)
 			if err != nil {
-				loger.Error(err)
+				logger.Error(err.Error())
 				return err
 			}
 			return err
 		}
-		loger.Info(string(script))
+		logger.Info(string(script))
 		if _, err := tx.Exec(ctx, string(script)); err != nil {
-			loger.Error(err)
+			logger.Error(err.Error())
 			err = tx.Rollback(ctx)
 			if err != nil {
-				loger.Error(err)
+				logger.Error(err.Error())
 				return err
 			}
 			return err
@@ -198,7 +198,7 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 		); err != nil {
 			err = tx.Rollback(ctx)
 			if err != nil {
-				loger.Error(err)
+				logger.Error(err.Error())
 				return err
 			}
 			return err

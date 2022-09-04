@@ -43,4 +43,8 @@ PGPASSWORD=devDEVdevDEV psql -Upostgres -d postgres
 # for profiling
 for i in {1..50000}; do curl http://127.0.0.1:1212/ -o /dev/null --silent; done
 
+
+
+# build with version
+go build -ldflags "-s -w -X main.buildVersion=v1.0.0" -trimpath  -o cmd/server/server cmd/server/
 ```

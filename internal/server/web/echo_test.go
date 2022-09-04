@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
@@ -281,7 +281,7 @@ func TestEchoHandler_Update(t *testing.T) {
 	}
 }
 func newStorage(t *testing.T) repositories.Repository {
-	s, err := local.NewStorage(false, nil)
+	s, err := local.NewStorage(false, nil, zap.L())
 	require.NoError(t, err)
 	return s
 }
@@ -351,13 +351,11 @@ func TestEchoHandlerJSON(t *testing.T) {
 			},
 		},
 	}
-	loger := logrus.New()
-	loger.SetReportCaller(true)
-	loger.SetLevel(logrus.DebugLevel)
+	logger, _ := zap.NewDevelopment()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewEchoServer(tt.fields.s, WithLoger(loger))
+			handler := NewEchoServer(tt.fields.s, WithLogger(logger))
 
 			buf := bytes.NewBufferString(tt.body1)
 			request := httptest.NewRequest(tt.method, tt.request1, buf)

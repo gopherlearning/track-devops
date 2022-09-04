@@ -12,7 +12,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/caarlos0/env/v6"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal"
 	"github.com/gopherlearning/track-devops/internal/metrics"
@@ -23,22 +23,24 @@ var (
 	buildDate    = "N/A"
 	buildCommit  = "N/A"
 	args         internal.AgentArgs
+	logger       *zap.Logger
 )
 
 func init() {
 	internal.FixAgentArgs()
+	logger = internal.InitLogger(args.Verbose)
 }
 
 func main() {
 	// Printing build options.
-	fmt.Printf("Build version:%s \nBuild date:%s \nBuild commit:%s \n", buildVersion, buildDate, buildCommit)
+	fmt.Printf("Build version: %s \nBuild date: %s \nBuild commit: %s \n", buildVersion, buildDate, buildCommit)
 
 	kong.Parse(&args)
 	err := env.Parse(&args)
 	if err != nil {
-		logrus.Fatal(err)
+		logger.Fatal(err.Error())
 	}
-	logrus.Infof("%+v", args)
+	logger.Info("Command arguments", zap.Any("agrs", args))
 	httpClient := http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        10,
@@ -48,7 +50,7 @@ func main() {
 	}
 	tickerPoll := time.NewTicker(args.PollInterval)
 	tickerReport := time.NewTicker(args.ReportInterval)
-	metricStore := metrics.NewStore([]byte(args.Key))
+	metricStore := metrics.NewStore([]byte(args.Key), logger)
 	metricStore.AddCustom(
 		new(metrics.PollCount),
 		new(metrics.RandomValue),
@@ -62,7 +64,7 @@ func main() {
 	for {
 		select {
 		case s := <-terminate:
-			fmt.Printf("Agent stoped by signal \"%v\"\n", s)
+			logger.Info(fmt.Sprintf("Agent stoped by signal \"%v\"", s))
 			return
 		case <-tickerPoll.C:
 			wg.Add(1)
@@ -70,7 +72,7 @@ func main() {
 				defer wg.Done()
 				err := metricStore.Scrape()
 				if err != nil {
-					fmt.Println(fmt.Errorf("metric store Scrape() failed: %v", err))
+					logger.Error("metric store Scrape() failed", zap.Error(err))
 				}
 			}()
 		case <-tickerReport.C:
@@ -82,7 +84,7 @@ func main() {
 				defer cancel()
 				err := metricStore.Save(ctx, &httpClient, &baseURL, args.Format == "json", args.Batch)
 				if err != nil {
-					fmt.Println(fmt.Errorf("metric store Save() failed: %v", err))
+					logger.Error("metric store Save() failed", zap.Error(err))
 				}
 			}()
 		}

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
@@ -22,10 +22,11 @@ type Storage struct {
 	metrics   map[string][]metrics.Metrics
 	storeFile string
 	mu        sync.RWMutex
+	logger    *zap.Logger
 }
 
 // NewStorage inmemory storage
-func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string) (*Storage, error) {
+func NewStorage(restore bool, storeInterval *time.Duration, logger *zap.Logger, storeFile ...string) (*Storage, error) {
 	s := &Storage{
 		metrics: make(map[string][]metrics.Metrics),
 	}
@@ -50,7 +51,7 @@ func NewStorage(restore bool, storeInterval *time.Duration, storeFile ...string)
 			for range ticker.C {
 				err := s.Save()
 				if err != nil {
-					logrus.Error(err)
+					logger.Error(err.Error())
 					return
 				}
 			}
@@ -67,7 +68,7 @@ func (s *Storage) Save() error {
 		return err
 	}
 	if len(s.storeFile) == 0 {
-		logrus.Infof("Эмуляция сохранения:\n%s", string(data))
+		s.logger.Info(fmt.Sprintf("Эмуляция сохранения:\n%s", string(data)))
 		return nil
 	}
 	err = os.WriteFile(s.storeFile, data, 0644)

@@ -85,7 +85,6 @@ func (s *Metrics) Sign(key []byte) error {
 	h := hmac.New(sha256.New, key)
 	h.Write(src)
 	s.Hash = hex.EncodeToString(h.Sum(nil))
-	// logrus.Error(s.Hash)
 	return nil
 }
 
@@ -109,7 +108,6 @@ func (s *Metrics) MarshalJSON() ([]byte, error) {
 			MetricsAlias: MetricsAlias(*s),
 			Value:        float64(*s.Value),
 		}
-		// logrus.Warn(aliasValue.Hash)
 		return json.Marshal(aliasValue)
 	default:
 		return nil, ErrNoSuchMetricType

@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/migrate"
@@ -22,18 +22,18 @@ var _ repositories.Repository = (*Storage)(nil)
 type Storage struct {
 	db                 *pgxpool.Pool
 	connConfig         *pgxpool.Config
-	loger              logrus.FieldLogger
+	logger             *zap.Logger
 	maxConnectAttempts int
 }
 
 // NewStorage reterns new  postgres storage
-func NewStorage(dsn string, loger logrus.FieldLogger) (*Storage, error) {
+func NewStorage(dsn string, logger *zap.Logger) (*Storage, error) {
 	connConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, err
 	}
 	connConfig.HealthCheckPeriod = 2 * time.Second
-	s := &Storage{connConfig: connConfig, loger: loger, maxConnectAttempts: 10}
+	s := &Storage{connConfig: connConfig, logger: logger, maxConnectAttempts: 10}
 	pool, err := pgxpool.ConnectConfig(context.Background(), s.connConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connection to database: %v", err)
@@ -41,12 +41,12 @@ func NewStorage(dsn string, loger logrus.FieldLogger) (*Storage, error) {
 	s.db = pool
 	err = s.db.Ping(context.Background())
 	if err != nil {
-		loger.Error(err)
+		logger.Error(err.Error())
 		return nil, err
 	}
-	err = migrate.MigrateFromFS(context.Background(), s.db, &migrations.Migrations, loger)
+	err = migrate.MigrateFromFS(context.Background(), s.db, &migrations.Migrations, logger)
 	if err != nil {
-		loger.Error(err)
+		logger.Error(err.Error())
 		return nil, err
 	}
 	return s, nil
@@ -84,7 +84,7 @@ func (s *Storage) GetMetric(ctx context.Context, target string, mType string, na
 	var mvalue float64
 	err := s.db.QueryRow(ctx, `select hash,COALESCE(mdelta, 0),COALESCE( mvalue, 0 ) from metrics where target = $1 AND id = $2 AND mtype = $3`, target, name, mType).Scan(&hash, &mdelta, &mvalue)
 	if err != nil {
-		s.loger.Error(err)
+		s.logger.Error(err.Error())
 		return nil, err
 	}
 	switch mType {
@@ -112,7 +112,7 @@ func (s *Storage) GetMetric(ctx context.Context, target string, mType string, na
 func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) (err error) {
 	old, err := s.Metrics(ctx, target)
 	if err != nil && err != pgx.ErrNoRows {
-		s.loger.Error(err)
+		s.logger.Error(err.Error())
 		return err
 	}
 	oldMap := make(map[string]metrics.Metrics, len(old[target]))
@@ -145,14 +145,14 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
-		s.loger.Error(err)
+		s.logger.Error(err.Error())
 		return
 	}
 	defer func() {
 		if err != nil {
 			err = tx.Rollback(ctx)
 			if err != nil {
-				s.loger.Error(err)
+				s.logger.Error(err.Error())
 			}
 		}
 	}()
@@ -165,7 +165,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 		_, err = tx.Exec(ctx, stmtInsert.Name, target, n.ID, n.Hash, n.MType, n.Delta, n.Value)
 		if err != nil {
 
-			s.loger.Error(err)
+			s.logger.Error(err.Error())
 			return
 		}
 	}
@@ -178,7 +178,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 	for _, n := range forUpdate {
 		_, err = tx.Exec(ctx, stmtUpdate.Name, n.Delta, n.Value, n.ID, target)
 		if err != nil {
-			s.loger.Error(err)
+			s.logger.Error(err.Error())
 			return
 		}
 	}
@@ -196,7 +196,7 @@ func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metr
 	rows, err := s.db.Query(ctx, SQL)
 	if err != nil {
 		err = fmt.Errorf("queryRow failed: %v", err)
-		s.loger.Error(err)
+		s.logger.Error(err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -209,7 +209,7 @@ func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metr
 		var mvalue float64
 		err = rows.Scan(&target, &id, &hash, &mtype, &mdelta, &mvalue)
 		if err != nil {
-			s.loger.Error(err)
+			s.logger.Error(err.Error())
 			return nil, err
 		}
 		if _, ok := res[target]; !ok {
@@ -234,7 +234,7 @@ func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metr
 		}
 	}
 	if rows.Err() != nil {
-		s.loger.Error(err)
+		s.logger.Error(err.Error())
 		return nil, err
 	}
 	return res, nil
@@ -244,7 +244,7 @@ func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metr
 func (s *Storage) List(ctx context.Context) (map[string][]string, error) {
 	mm, err := s.Metrics(ctx, "")
 	if err != nil {
-		s.loger.Error(err)
+		s.logger.Error(err.Error())
 		return nil, err
 	}
 	res := make(map[string][]string, len(mm))

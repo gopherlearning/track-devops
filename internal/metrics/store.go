@@ -13,7 +13,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 type store struct {
@@ -21,6 +21,7 @@ type store struct {
 	memstat *runtime.MemStats
 	key     []byte
 	mu      sync.RWMutex
+	logger  *zap.Logger
 }
 
 var runtimeMetrics = map[string]string{
@@ -54,12 +55,12 @@ var runtimeMetrics = map[string]string{
 }
 
 // NewStore create in memory metrics store
-func NewStore(key []byte) *store {
-
+func NewStore(key []byte, logger *zap.Logger) *store {
 	return &store{
 		memstat: &runtime.MemStats{},
 		custom:  make(map[string]Metric),
 		key:     key,
+		logger:  logger,
 	}
 }
 
@@ -72,7 +73,7 @@ func (s *store) MemStats() []string {
 	for k, v := range runtimeMetrics {
 		f := r.Elem().FieldByName(k)
 		if !f.IsValid() {
-			logrus.Error("Bad Name - ", k)
+			s.logger.Error("Bad Name - " + k)
 			return nil
 		}
 		res = append(res, fmt.Sprintf("/update/%s/%s/%v", v, k, f))
@@ -140,7 +141,7 @@ func (s *store) AllMetrics() []Metrics {
 		}
 		if len(s.key) != 0 {
 			if err := m.Sign(s.key); err != nil {
-				logrus.Error(err)
+				s.logger.Error(err.Error())
 				return nil
 			}
 		}
@@ -165,7 +166,6 @@ func (s *store) Custom() map[string]Metric {
 func (s *store) Save(ctx context.Context, client *http.Client, baseURL *string, isJSON bool, batch bool) error {
 	if client != nil && baseURL != nil {
 		if !isJSON {
-			logrus.Info(111111111111111111)
 			res := s.All()
 			errC := make(chan error, len(res))
 			for i := 0; i < len(res); i++ {
@@ -179,7 +179,7 @@ func (s *store) Save(ctx context.Context, client *http.Client, baseURL *string, 
 					resp, err := c.Do(req)
 					if err != nil {
 						errC <- err
-						logrus.Error(err)
+						s.logger.Error(err.Error())
 						return
 					}
 					defer resp.Body.Close()
@@ -282,7 +282,6 @@ func sendMetrics(ctx context.Context, c *http.Client, url string, metrics []Metr
 	if err != nil {
 		return err
 	}
-	logrus.Info(string(b))
 	buf := bytes.NewBuffer(b)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
 	if err != nil {

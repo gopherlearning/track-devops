@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gopherlearning/track-devops/internal/repositories"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 // showContent период вывода содержимого хранилища
@@ -50,7 +50,7 @@ func FixServerArgs() {
 }
 
 // ShowStore Периодический вывод содержимого хранилища
-func ShowStore(store repositories.Repository) {
+func ShowStore(store repositories.Repository, logger *zap.Logger) {
 	ticker := time.NewTicker(SHOWCONTENT)
 	for {
 		<-ticker.C
@@ -59,7 +59,7 @@ func ShowStore(store repositories.Repository) {
 		var list map[string][]string
 		list, err := store.List(context.Background())
 		if err != nil {
-			logrus.Error(err)
+			logger.Error(err.Error())
 			continue
 		}
 		for target, values := range list {
@@ -69,4 +69,14 @@ func ShowStore(store repositories.Repository) {
 			}
 		}
 	}
+}
+
+// InitLogger
+func InitLogger(verbose bool) (logger *zap.Logger) {
+	if verbose {
+		logger, _ = zap.NewDevelopment()
+		return
+	}
+	logger, _ = zap.NewProduction()
+	return
 }
