@@ -30,6 +30,7 @@ var args struct {
 	Batch          bool          `short:"b" help:"Send batch mrtrics" env:"BATCH" default:"true"`
 	PollInterval   time.Duration `short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
 	ReportInterval time.Duration `short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
+	CryptoKey      string        `help:"Путь к файлу, где хранятся публийчный ключ шифрования" env:"CRYPTO_KEY" default:"key.pub"`
 }
 
 func init() {
