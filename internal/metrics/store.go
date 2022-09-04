@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -17,10 +17,10 @@ import (
 )
 
 type store struct {
-	mu      sync.RWMutex
-	memstat *runtime.MemStats
 	custom  map[string]Metric
+	memstat *runtime.MemStats
 	key     []byte
+	mu      sync.RWMutex
 }
 
 var runtimeMetrics = map[string]string{
@@ -66,17 +66,17 @@ func NewStore(key []byte) *store {
 // MemStats returns memstat metrics in URL view
 func (s *store) MemStats() []string {
 	s.mu.RLock()
+	defer s.mu.RUnlock()
 	res := make([]string, 0)
 	r := reflect.ValueOf(s.memstat)
 	for k, v := range runtimeMetrics {
 		f := r.Elem().FieldByName(k)
 		if !f.IsValid() {
-			fmt.Println("Bad Name - ", k)
+			logrus.Error("Bad Name - ", k)
 			return nil
 		}
 		res = append(res, fmt.Sprintf("/update/%s/%s/%v", v, k, f))
 	}
-	s.mu.RUnlock()
 	sort.Strings(res)
 	return res
 }
@@ -113,7 +113,6 @@ func (s *store) AllMetrics() []Metrics {
 			m := s.custom[k].Metrics()
 			if len(s.key) != 0 {
 				if err := m.Sign(s.key); err != nil {
-					logrus.Error(err)
 					return nil
 				}
 			}
@@ -127,8 +126,8 @@ func (s *store) AllMetrics() []Metrics {
 		}
 		m := Metrics{ID: k, MType: runtimeMetrics[k]}
 		switch runtimeMetrics[k] {
-		case string(CounterType):
-			m.Delta = GetInt64Pointer(f.Int())
+		// case string(CounterType):
+		// 	m.Delta = GetInt64Pointer(f.Int())
 		case string(GaugeType):
 			var a float64
 			switch f.Type().String() {
@@ -163,17 +162,15 @@ func (s *store) Custom() map[string]Metric {
 }
 
 // Save send metrics to store server
-func (s *store) Save(client *http.Client, baseURL *string, isJSON bool, batch bool) error {
+func (s *store) Save(ctx context.Context, client *http.Client, baseURL *string, isJSON bool, batch bool) error {
 	if client != nil && baseURL != nil {
 		if !isJSON {
+			logrus.Info(111111111111111111)
 			res := s.All()
-			fmt.Println(res)
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 			errC := make(chan error, len(res))
 			for i := 0; i < len(res); i++ {
 				go func(ctx context.Context, c *http.Client, url string) {
-					req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 					if err != nil {
 						errC <- err
 						return
@@ -182,22 +179,29 @@ func (s *store) Save(client *http.Client, baseURL *string, isJSON bool, batch bo
 					resp, err := c.Do(req)
 					if err != nil {
 						errC <- err
+						logrus.Error(err)
 						return
 					}
 					defer resp.Body.Close()
 
 					if resp.StatusCode != http.StatusOK {
-						body, err := ioutil.ReadAll(resp.Body)
-						if err != nil {
+						var body []byte
+						body, err = io.ReadAll(resp.Body)
+						if err != nil || emulateError {
+							if err == nil {
+								err = errors.New("emulateError")
+							}
 							errC <- err
 							return
 						}
-						errC <- nil
-						fmt.Println("save failed: ", string(body))
+						errC <- fmt.Errorf("save failed: %v", string(body))
 						return
 					}
 					_, err = io.Copy(io.Discard, resp.Body)
-					if err != nil {
+					if err != nil || emulateError {
+						if err == nil {
+							err = errors.New("emulateError")
+						}
 						errC <- err
 						return
 					}
@@ -212,8 +216,6 @@ func (s *store) Save(client *http.Client, baseURL *string, isJSON bool, batch bo
 			return nil
 		}
 		res := s.AllMetrics()
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		if batch {
 			return sendMetrics(ctx, client, *baseURL+"/updates/", res)
 		}
@@ -226,18 +228,19 @@ func (s *store) Save(client *http.Client, baseURL *string, isJSON bool, batch bo
 				return err
 			}
 		}
-		return nil
 	}
 	return nil
 }
 
 func sendMetric(ctx context.Context, errC chan error, c *http.Client, url string, metric Metrics) {
 	b, err := json.Marshal(metric)
-	if err != nil {
+	if err != nil || len(fmt.Sprint(metric)) == 0 {
+		if len(fmt.Sprint(metric)) == 0 {
+			err = ErrNoSuchMetricType
+		}
 		errC <- err
 		return
 	}
-	logrus.Info(string(b))
 	buf := bytes.NewBuffer(b)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
 	if err != nil {
@@ -251,19 +254,24 @@ func sendMetric(ctx context.Context, errC chan error, c *http.Client, url string
 		return
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
+		var body []byte
+		body, err = io.ReadAll(resp.Body)
+		if err != nil || emulateError {
+			if err == nil {
+				err = errors.New("emulateError")
+			}
 			errC <- err
 			return
 		}
-		errC <- nil
-		fmt.Println("save failed: ", string(body))
+		errC <- errors.New("save failed: " + string(body))
 		return
 	}
 	_, err = io.Copy(io.Discard, resp.Body)
-	if err != nil {
+	if err != nil || emulateError {
+		if err == nil {
+			err = errors.New("emulateError")
+		}
 		errC <- err
 		return
 	}
@@ -281,21 +289,29 @@ func sendMetrics(ctx context.Context, c *http.Client, url string, metrics []Metr
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.Do(req)
+	var resp *http.Response
+	resp, err = c.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
+		var body []byte
+		body, err = io.ReadAll(resp.Body)
+		if err != nil || emulateError {
+			if err == nil {
+				err = errors.New("emulateError")
+			}
 			return err
 		}
 		return fmt.Errorf("save failed: %s. %v", string(body), err)
 	}
 	_, err = io.Copy(io.Discard, resp.Body)
-	if err != nil {
+	if err != nil || emulateError {
+		if err == nil {
+			err = errors.New("emulateError")
+		}
 		return err
 	}
 	return nil

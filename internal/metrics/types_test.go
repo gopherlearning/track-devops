@@ -1,9 +1,15 @@
 package metrics
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,8 +98,154 @@ func TestMetrics(t *testing.T) {
 	}
 }
 
-func TestStore(t *testing.T) {
+func TestSendMetrics(t *testing.T) {
+	ms := &Metrics{MType: "test", ID: "test", Delta: nil, Value: nil}
+	badURL := "#a"
+	var ctxnil context.Context
+	ctx := context.TODO()
+	errs := make(chan error, 1)
+	sendMetric(ctxnil, errs, http.DefaultClient, badURL, *ms)
+	assert.Error(t, <-errs)
+	errs = make(chan error, 1)
+	sendMetric(ctxnil, errs, http.DefaultClient, badURL, *ms)
+	assert.Error(t, <-errs)
+	errs = make(chan error, 1)
+	sendMetric(ctx, errs, http.DefaultClient, badURL, *ms)
+	assert.Error(t, <-errs)
+	ms = &Metrics{MType: "counter", ID: "test", Delta: GetInt64Pointer(1111), Value: nil}
+	errs = make(chan error, 1)
+	sendMetric(ctxnil, errs, http.DefaultClient, badURL, *ms)
+	assert.Error(t, <-errs)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(`Not OK`))
+	}))
+	errs = make(chan error, 1)
+	sendMetric(ctx, errs, http.DefaultClient, server.URL, *ms)
+	assert.Error(t, <-errs)
+	assert.Error(t, sendMetrics(ctx, http.DefaultClient, server.URL, []Metrics{*ms}))
+	emulateError = true
+	sendMetric(ctx, errs, http.DefaultClient, server.URL, *ms)
+	assert.Error(t, <-errs)
+	assert.Error(t, sendMetrics(ctx, http.DefaultClient, server.URL, []Metrics{*ms}))
+	emulateError = false
+	server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte(`OK`))
+	}))
+	errs = make(chan error, 1)
+	sendMetric(ctx, errs, http.DefaultClient, server.URL, *ms)
+	assert.Nil(t, <-errs)
+	assert.Nil(t, sendMetrics(ctx, http.DefaultClient, server.URL, []Metrics{*ms}))
+	emulateError = true
+	sendMetric(ctx, errs, http.DefaultClient, server.URL, *ms)
+	assert.Error(t, <-errs)
+	assert.Error(t, sendMetrics(ctx, http.DefaultClient, server.URL, []Metrics{*ms}))
+	assert.Error(t, sendMetrics(ctxnil, http.DefaultClient, server.URL, []Metrics{*ms}))
+	emulateError = false
+}
+
+func TestSave(t *testing.T) {
+	logrus.SetReportCaller(true)
 	m := NewStore([]byte("secret"))
+	m.AddCustom(
+		new(PollCount),
+		new(RandomValue),
+	)
+	ctx := context.TODO()
+	assert.Nil(t, m.Scrape())
+	assert.Nil(t, m.Save(ctx, nil, nil, true, false))
+	assert.Error(t, m.Save(ctx, &http.Client{}, new(string), true, false))
+	assert.Error(t, m.Save(ctx, &http.Client{}, new(string), true, true))
+	assert.Error(t, m.Save(ctx, &http.Client{}, new(string), false, true))
+	badURL := "#a"
+	assert.Error(t, m.Save(ctx, &http.Client{}, &badURL, false, true))
+	var ctxnil context.Context
+	assert.Error(t, m.Save(ctxnil, &http.Client{}, &badURL, false, true))
+	time.Sleep(time.Second)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+
+		// assert.Equal(t, req.URL.String(), "/updates/")
+		rw.WriteHeader(http.StatusOK)
+		// rw.Write([]byte(`OK`))
+	}))
+	assert.NoError(t, m.Save(ctx, http.DefaultClient, &server.URL, true, true))
+	assert.NoError(t, m.Save(ctx, http.DefaultClient, &server.URL, true, false))
+	assert.NoError(t, m.Save(ctx, http.DefaultClient, &server.URL, false, false))
+	emulateError = true
+	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, true))
+	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, false))
+	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, false, false))
+	emulateError = false
+	server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		// assert.Equal(t, req.URL.String(), "/updates/")
+		rw.WriteHeader(http.StatusInternalServerError)
+		// rw.Write([]byte(`OK`))
+	}))
+	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, true))
+	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, false))
+	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, false, false))
+	emulateError = true
+	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, true))
+	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, false))
+	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, false, false))
+	emulateError = false
+}
+
+func TestAllMetrics(t *testing.T) {
+	m := NewStore([]byte("1234"))
+	m.AddCustom(new(PollCount))
+	assert.NotEmpty(t, m.AllMetrics())
+	for _, v := range m.AllMetrics() {
+		assert.NotEmpty(t, v.String())
+		assert.Contains(t, v.StringFull(), " - ")
+	}
+	m = NewStore([]byte("12"))
+	assert.Nil(t, m.AllMetrics())
+	runtimeMetricsOld := make(map[string]string)
+	for k, v := range runtimeMetrics {
+		runtimeMetricsOld[k] = v
+	}
+	runtimeMetrics = nil
+	m.AddCustom(new(TotalMemory))
+	m.AddCustom(new(PollCount))
+	assert.Nil(t, m.AllMetrics())
+	runtimeMetrics = make(map[string]string)
+	for k, v := range runtimeMetricsOld {
+		runtimeMetrics[k] = v
+	}
+	runtimeMetrics["TestBadName"] = "guag"
+	assert.Nil(t, m.AllMetrics())
+	assert.Nil(t, m.MemStats())
+	delete(runtimeMetrics, "TestBadName")
+}
+
+func TestStore(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		// Test request parameters
+		assert.Equal(t, req.URL.String(), "/")
+		// Send response to be tested
+		rw.Write([]byte(`OK`))
+	}))
+	// Close the server when test finishes
+	defer server.Close()
+	m := NewStore([]byte("secret"))
+	m.AddCustom(
+		new(TestErrorMetric),
+	)
+	assert.Error(t, m.Scrape(), errors.New("TestErrorMetric error"))
+	emulateError = true
+	m = NewStore([]byte("secret"))
+	m.AddCustom(new(CPUutilization1))
+	assert.Error(t, m.Scrape())
+	m = NewStore([]byte("secret"))
+	m.AddCustom(new(TotalMemory))
+	assert.Error(t, m.Scrape())
+	m = NewStore([]byte("secret"))
+	m.AddCustom(new(FreeMemory))
+	assert.Error(t, m.Scrape())
+	emulateError = false
+	m = NewStore([]byte("secret"))
 	m.AddCustom(
 		new(PollCount),
 		new(RandomValue),
@@ -103,25 +255,14 @@ func TestStore(t *testing.T) {
 	)
 	require.NotEmpty(t, m.MemStats())
 	require.NotEmpty(t, m.All())
-	assert.Nil(t, m.Save(nil, nil, true, false))
-	assert.Error(t, m.Save(&http.Client{}, new(string), true, false))
-	assert.Error(t, m.Save(&http.Client{}, new(string), true, true))
-	assert.Error(t, m.Save(&http.Client{}, new(string), false, true))
-	badURL := "bla"
-	assert.Error(t, m.Save(&http.Client{}, &badURL, false, true))
-	assert.Equal(t, m.Scrape(), nil)
-	for _, v := range m.AllMetrics() {
-		assert.NotEmpty(t, v.String())
-		assert.Contains(t, v.StringFull(), " - ")
-	}
-	m.key = []byte("1")
-	assert.Nil(t, m.AllMetrics())
+
 	m.key = []byte("secret")
 	ms := &Metrics{MType: "counter", ID: "test", Delta: nil, Value: nil}
 	assert.Equal(t, ms.String(), "")
 	ms = &Metrics{MType: "gauge", ID: "test", Delta: nil, Value: nil}
 	assert.Equal(t, ms.String(), "")
 	ms = &Metrics{MType: "test", ID: "test", Delta: nil, Value: nil}
+
 	assert.Equal(t, ms.String(), "")
 	assert.Equal(t, ms.Sign([]byte("secret")), ErrNoSuchMetricType)
 	assert.Equal(t, ms.Sign(nil), ErrTooSHortKey)
@@ -138,4 +279,38 @@ func TestStore(t *testing.T) {
 	assert.Contains(t, ms.StringFull(), " - ")
 	runtimeMetrics["test"] = "badMetric"
 	assert.Nil(t, m.MemStats())
+}
+
+type TestErrorMetric int64
+
+var _ Counter = new(TestErrorMetric)
+
+func (m TestErrorMetric) Name() string {
+	return "TestErrorMetric"
+}
+func (m TestErrorMetric) Desc() string {
+	return "TestErrorMetric"
+}
+func (m TestErrorMetric) Type() string {
+	return "counter"
+}
+
+func (m TestErrorMetric) String() string {
+	return fmt.Sprintf("%d", m)
+}
+
+func (m *TestErrorMetric) Get() int64 {
+	return int64(*m)
+}
+func (m *TestErrorMetric) Set(i int64) {
+	*m = TestErrorMetric(i)
+}
+
+// Scrape увеличивает собственное значение на единицу
+func (m *TestErrorMetric) Scrape() error {
+	return errors.New("TestErrorMetric error")
+}
+
+func (m *TestErrorMetric) Metrics() Metrics {
+	return Metrics{ID: m.Name(), MType: m.Type(), Delta: GetInt64Pointer(int64(*m))}
 }

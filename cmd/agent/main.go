@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,13 +18,18 @@ import (
 	"github.com/gopherlearning/track-devops/internal/metrics"
 )
 
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
 var args struct {
 	ServerAddr     string        `short:"a" help:"Server address" name:"address" env:"ADDRESS" default:"127.0.0.1:8080"`
-	PollInterval   time.Duration `short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
-	ReportInterval time.Duration `short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
 	Key            string        `short:"k" help:"Ключ подписи" env:"KEY"`
 	Format         string        `short:"f" help:"Report format" env:"FORMAT"`
 	Batch          bool          `short:"b" help:"Send batch mrtrics" env:"BATCH" default:"true"`
+	PollInterval   time.Duration `short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
+	ReportInterval time.Duration `short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
 }
 
 func init() {
@@ -38,6 +44,9 @@ func init() {
 }
 
 func main() {
+	// Printing build options.
+	fmt.Printf("Build version:%s \nBuild date:%s \nBuild commit:%s \n", buildVersion, buildDate, buildCommit)
+
 	kong.Parse(&args)
 	err := env.Parse(&args)
 	if err != nil {
@@ -83,7 +92,9 @@ func main() {
 			go func() {
 				wg.Done()
 				baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
-				err := metricStore.Save(&httpClient, &baseURL, args.Format == "json", args.Batch)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				err := metricStore.Save(ctx, &httpClient, &baseURL, args.Format == "json", args.Batch)
 				if err != nil {
 					fmt.Println(fmt.Errorf("metric store Save() failed: %v", err))
 				}
