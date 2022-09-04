@@ -13,6 +13,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/gopherlearning/track-devops/internal/agent"
 	"go.uber.org/zap"
 )
 
@@ -163,13 +164,13 @@ func (s *store) Custom() map[string]Metric {
 }
 
 // Save send metrics to store server
-func (s *store) Save(ctx context.Context, client *http.Client, baseURL *string, isJSON bool, batch bool) error {
+func (s *store) Save(ctx context.Context, client agent.Sender, baseURL *string, isJSON bool, batch bool) error {
 	if client != nil && baseURL != nil {
 		if !isJSON {
 			res := s.All()
 			errC := make(chan error, len(res))
 			for i := 0; i < len(res); i++ {
-				go func(ctx context.Context, c *http.Client, url string) {
+				go func(ctx context.Context, c agent.Sender, url string) {
 					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 					if err != nil {
 						errC <- err
@@ -232,7 +233,7 @@ func (s *store) Save(ctx context.Context, client *http.Client, baseURL *string, 
 	return nil
 }
 
-func sendMetric(ctx context.Context, errC chan error, c *http.Client, url string, metric Metrics) {
+func sendMetric(ctx context.Context, errC chan error, c agent.Sender, url string, metric Metrics) {
 	b, err := json.Marshal(metric)
 	if err != nil || len(fmt.Sprint(metric)) == 0 {
 		if len(fmt.Sprint(metric)) == 0 {
@@ -277,7 +278,7 @@ func sendMetric(ctx context.Context, errC chan error, c *http.Client, url string
 	}
 	errC <- nil
 }
-func sendMetrics(ctx context.Context, c *http.Client, url string, metrics []Metrics) error {
+func sendMetrics(ctx context.Context, c agent.Sender, url string, metrics []Metrics) error {
 	b, err := json.Marshal(metrics)
 	if err != nil {
 		return err

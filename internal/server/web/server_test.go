@@ -24,7 +24,8 @@ func TestServer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewEchoServer(newStorage(t), WithKey([]byte("test")), WithPprof(true))
+			s, err := NewEchoServer(newStorage(t), WithKey([]byte("test")), WithPprof(true))
+			require.NoError(t, err)
 			require.NoError(t, s.s.Ping(context.TODO()))
 			require.NotNil(t, s)
 			wg := sync.WaitGroup{}

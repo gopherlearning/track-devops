@@ -3,10 +3,17 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha512"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -36,6 +43,63 @@ func WithKey(key []byte) echoServerOptionFunc {
 	}
 }
 
+// WithCryptoKey задаёт ключ шифрования соединения с агентом и задаёт middleware для дешифрования тела запроса
+func WithCryptoKey(keyPath string) echoServerOptionFunc {
+	if len(keyPath) == 0 {
+		return func(c *echoServer) {}
+	}
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		zap.L().Error(err.Error())
+		return nil
+	}
+
+	cryptoKey, rest := pem.Decode(keyPEM)
+	if cryptoKey == nil {
+		zap.L().Error("pem.Decode failed", zap.Any("error", rest))
+		return nil
+	}
+	privKey, err := x509.ParsePKCS1PrivateKey(cryptoKey.Bytes)
+	if err != nil {
+		zap.L().Error("x509.ParsePKCS1PrivateKey", zap.Error(err))
+		return nil
+	}
+	return func(c *echoServer) {
+		c.e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				if c.Request().Method != echo.POST {
+					return next(c)
+				}
+				hash := sha512.New()
+				r := c.Request()
+				encrypted := make([]byte, 0)
+				bufEncrypted := bytes.NewBuffer(encrypted)
+				for {
+					b := make([]byte, 0)
+					buf := bytes.NewBuffer(b)
+					v, _ := io.CopyN(buf, r.Body, int64(privKey.PublicKey.Size()))
+					if v == 0 {
+						break
+					}
+					plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, privKey, buf.Bytes(), nil)
+					if err != nil {
+						zap.L().Debug(err.Error())
+						return c.HTML(http.StatusNotAcceptable, err.Error())
+					}
+					_, err = bufEncrypted.Write(plaintext)
+					if err != nil {
+						zap.L().Debug(err.Error())
+						return c.HTML(http.StatusNotAcceptable, err.Error())
+					}
+				}
+				r.ContentLength = int64(bufEncrypted.Len())
+				r.Body = io.NopCloser(bufEncrypted)
+				return next(c)
+			}
+		})
+	}
+}
+
 // WithLogger set logger
 func WithLogger(logger *zap.Logger) echoServerOptionFunc {
 	return func(c *echoServer) {
@@ -53,7 +117,7 @@ func WithPprof(usePprof bool) echoServerOptionFunc {
 }
 
 // NewechoServer returns http server
-func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) *echoServer {
+func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) (*echoServer, error) {
 	e := echo.New()
 	// e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
@@ -70,9 +134,12 @@ func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) *ech
 	serv.e.GET("/ping", serv.Ping)
 	serv.e.GET("/", serv.ListMetrics)
 	for _, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("option error: %v", opt)
+		}
 		opt(serv)
 	}
-	return serv
+	return serv, nil
 }
 
 // GetMetric ...

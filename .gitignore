@@ -26,3 +26,5 @@ vendor/
 .idea
 .vscode
 profile.cov
+key.pub
+key.pem

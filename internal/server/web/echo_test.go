@@ -53,7 +53,8 @@ func TestEchoHandler_Get(t *testing.T) {
 				m := strings.Split(tt.request, "/")
 				require.NoError(t, s.UpdateMetric(context.TODO(), tt.target, metrics.Metrics{MType: m[2], ID: m[3], Delta: metrics.GetInt64Pointer(tt.value["counter"].(int64)), Value: metrics.GetFloat64Pointer(tt.value["gauge"].(float64))}))
 			}
-			handler := NewEchoServer(s)
+			handler, err := NewEchoServer(s)
+			require.NoError(t, err)
 			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
 			w := httptest.NewRecorder()
 			handler.e.ServeHTTP(w, handler.e.NewContext(request, w).Request())
@@ -231,7 +232,8 @@ func TestEchoHandler_Update(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewEchoServer(tt.fields.s)
+			handler, err := NewEchoServer(tt.fields.s)
+			require.NoError(t, err)
 			request := httptest.NewRequest(tt.method, tt.request1, nil)
 			w := httptest.NewRecorder()
 			handler.e.ServeHTTP(w, handler.e.NewContext(request, w).Request())
@@ -355,8 +357,8 @@ func TestEchoHandlerJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewEchoServer(tt.fields.s, WithLogger(logger))
-
+			handler, err := NewEchoServer(tt.fields.s, WithLogger(logger))
+			require.NoError(t, err)
 			buf := bytes.NewBufferString(tt.body1)
 			request := httptest.NewRequest(tt.method, tt.request1, buf)
 			request.Header.Add("Content-Type", tt.content)

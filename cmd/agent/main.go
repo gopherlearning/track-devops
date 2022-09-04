@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -15,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal"
+	"github.com/gopherlearning/track-devops/internal/agent"
 	"github.com/gopherlearning/track-devops/internal/metrics"
 )
 
@@ -32,7 +32,6 @@ func init() {
 }
 
 func main() {
-	// Printing build options.
 	fmt.Printf("Build version: %s \nBuild date: %s \nBuild commit: %s \n", buildVersion, buildDate, buildCommit)
 
 	kong.Parse(&args)
@@ -41,12 +40,9 @@ func main() {
 		logger.Fatal(err.Error())
 	}
 	logger.Info("Command arguments", zap.Any("agrs", args))
-	httpClient := http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        10,
-			MaxConnsPerHost:     10,
-			MaxIdleConnsPerHost: 10,
-		},
+	httpClient, err := agent.NewClient(args.CryptoKey)
+	if err != nil {
+		logger.Fatal(err.Error())
 	}
 	tickerPoll := time.NewTicker(args.PollInterval)
 	tickerReport := time.NewTicker(args.ReportInterval)
@@ -82,7 +78,7 @@ func main() {
 				baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				err := metricStore.Save(ctx, &httpClient, &baseURL, args.Format == "json", args.Batch)
+				err := metricStore.Save(ctx, httpClient, &baseURL, args.Format == "json", args.Batch)
 				if err != nil {
 					logger.Error("metric store Save() failed", zap.Error(err))
 				}

@@ -40,12 +40,20 @@ func main() {
 		logger.Fatal(err.Error())
 	}
 	logger.Info("Command arguments", zap.Any("agrs", args))
+	if args.GenerateCryptoKeys {
+		err = web.GenerateCryptoKeys(args.CryptoKey)
+		if err != nil {
+			logger.Fatal(err.Error())
+		}
+	}
 	store, err := storage.InitStorage(args, logger)
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
-	s := web.NewEchoServer(store, web.WithKey([]byte(args.Key)), web.WithPprof(args.UsePprof), web.WithLogger(logger))
-
+	s, err := web.NewEchoServer(store, web.WithKey([]byte(args.Key)), web.WithPprof(args.UsePprof), web.WithLogger(logger), web.WithCryptoKey(args.CryptoKey))
+	if err != nil {
+		logger.Fatal(err.Error())
+	}
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 

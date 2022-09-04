@@ -13,7 +13,7 @@ type ServerArgs struct {
 	ShowStore          bool          `help:"Переодически выводить содержимое в консоль"`
 	StoreInterval      time.Duration `short:"i" help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL" default:"300s"`
 	GenerateCryptoKeys bool          `help:"Сгенерировать ключи для ассиметричного шифрования"`
-	CryptoKey          string        `help:"Путь к файлу, где хранятся приватный ключ шифрования" env:"CRYPTO_KEY" default:"key.pem"`
+	CryptoKey          string        `help:"Путь к файлу, где хранятся приватный ключ шифрования" env:"CRYPTO_KEY"`
 }
 
 type AgentArgs struct {
@@ -24,5 +24,5 @@ type AgentArgs struct {
 	Batch          bool          `short:"b" help:"Send batch mrtrics" env:"BATCH" default:"true"`
 	PollInterval   time.Duration `short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
 	ReportInterval time.Duration `short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
-	CryptoKey      string        `help:"Путь к файлу, где хранятся публийчный ключ шифрования" env:"CRYPTO_KEY" default:"key.pub"`
+	CryptoKey      string        `help:"Путь к файлу, где хранятся публийчный ключ шифрования" env:"CRYPTO_KEY" default:""`
 }

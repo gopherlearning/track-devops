@@ -78,5 +78,6 @@ func InitLogger(verbose bool) (logger *zap.Logger) {
 		return
 	}
 	logger, _ = zap.NewProduction()
+	zap.ReplaceGlobals(logger)
 	return
 }
