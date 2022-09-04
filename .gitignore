@@ -18,7 +18,7 @@ cmd/server/main
 cmd/server/server
 cmd/staticlint/main
 cmd/staticlint/staticlint
-
+temp-bla
 # Dependency directories (remove the comment below to include it)
 vendor/
 
