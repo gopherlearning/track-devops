@@ -282,7 +282,7 @@ func TestEchoHandler_Update(t *testing.T) {
 		})
 	}
 }
-func newStorage(t *testing.T) repositories.Repository {
+func newStorage(t *testing.T) *local.Storage {
 	s, err := local.NewStorage(false, nil, zap.L())
 	require.NoError(t, err)
 	return s

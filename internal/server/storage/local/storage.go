@@ -23,6 +23,7 @@ type Storage struct {
 	storeFile string
 	mu        sync.RWMutex
 	logger    *zap.Logger
+	PingError bool
 }
 
 // NewStorage inmemory storage
@@ -96,6 +97,9 @@ func (s *Storage) GetMetric(ctx context.Context, target, mtype, name string) (*m
 
 // Ping заглушка
 func (s *Storage) Ping(context.Context) error {
+	if s.PingError {
+		return fmt.Errorf("emulate error for test")
+	}
 	return nil
 }
 
