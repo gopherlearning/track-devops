@@ -33,7 +33,7 @@ type AgentArgs struct {
 	Batch          bool          `name:"batch" short:"b" help:"Send batch mrtrics" env:"BATCH" default:"true"`
 	PollInterval   time.Duration `name:"poll-interval" json:"poll_interval" short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
 	ReportInterval time.Duration `name:"report-interval" json:"report_interval" short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
-	CryptoKey      string        `name:"crypto-key" json:"crypto_key" help:"Путь к файлу, где хранятся публийчный ключ шифрования" env:"CRYPTO_KEY" default:""`
+	CryptoKey      string        `name:"crypto-key" json:"crypto_key" help:"Путь к файлу, где хранятся публийчный ключ шифрования" env:"CRYPTO_KEY"`
 }
 
 // ReadConfig задаёт стандартные значения, читает конфиг, проверяет переменное окружение и флаги

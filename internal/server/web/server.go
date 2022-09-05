@@ -70,6 +70,9 @@ func WithCryptoKey(keyPath string) echoServerOptionFunc {
 				if c.Request().Method != echo.POST {
 					return next(c)
 				}
+				if c.Request().Header.Get("Content-Type") != "application/json" {
+					return next(c)
+				}
 				hash := sha512.New()
 				r := c.Request()
 				encrypted := make([]byte, 0)
