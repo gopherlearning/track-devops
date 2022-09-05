@@ -13,7 +13,7 @@ type ServerArgs struct {
 	Verbose            bool          `name:"verbose" short:"v" help:"Включить расширенное логирование" env:"VERBOSE"`
 	Config             string        `name:"config" json:"-" short:"c" help:"Путь к файлу конфигурации" env:"CONFIG"`
 	ServerAddr         string        `name:"address" short:"a" help:"Server address" env:"ADDRESS" default:"127.0.0.1:8080"`
-	StoreFile          string        `name:"store-file" json:"store_file" short:"f" help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE"`
+	StoreFile          string        `name:"store-file" json:"store_file" short:"f" help:"строка, имя файла, где хранятся значения (пустое значение — отключает функцию записи на диск)" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json"`
 	DatabaseDSN        string        `name:"database-dsn" json:"database_dsn" short:"d" help:"строка c адресом подключения к БД" env:"DATABASE_DSN"`
 	Key                string        `name:"key" short:"k" help:"Ключ подписи" env:"KEY"`
 	Restore            bool          `name:"restore" short:"r" help:"булево значение (true/false), определяющее, загружать или нет начальные значения из указанного файла при старте сервера" env:"RESTORE"  default:"true"`
