@@ -58,10 +58,28 @@ func ReadConfig(cfg interface{}) {
 func FixArgs() string {
 	var confPath string
 	// только для прохождения теста
+	// skip := false
 	for i := 0; i < len(os.Args); i++ {
+		// if skip {
+		// 	skip = false
+		// 	continue
+		// }
 		if strings.Contains(os.Args[i], "=") {
 			a := strings.Split(os.Args[i], "=")
+			if !strings.Contains(a[0], "-") {
+				continue
+			}
+			if len(a) > 2 {
+				b := strings.Join(a[1:], "=")
+				a = []string{a[0], b}
+			}
+			if a[0] == "-r" && (a[1] == "false" || a[1] == "true") {
+				os.Args[i] = strings.ReplaceAll(os.Args[i], "-r", "--restore")
+				continue
+			}
+			fmt.Println(i, " - ", os.Args[i])
 			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
+			// skip = true
 		}
 	}
 	for i := 0; i < len(os.Args); i++ {
