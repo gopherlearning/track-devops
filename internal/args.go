@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/caarlos0/env/v6"
 )
 
 type ServerArgs struct {
@@ -51,6 +52,8 @@ func ReadConfig(cfg interface{}) {
 	fmt.Println(os.Args)
 	parser := kong.Must(cfg, opts...)
 	_, err := parser.Parse(os.Args[1:])
+	parser.FatalIfErrorf(err)
+	err = env.Parse(cfg)
 	parser.FatalIfErrorf(err)
 }
 
