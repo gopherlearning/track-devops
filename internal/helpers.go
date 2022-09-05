@@ -44,7 +44,7 @@ func InitLogger(verbose bool) (logger *zap.Logger) {
 		logger, _ = zap.NewDevelopment()
 		return
 	}
-	logger, _ = zap.NewProduction()
+	logger, _ = zap.NewProduction(zap.AddStacktrace(zap.DPanicLevel))
 	zap.ReplaceGlobals(logger)
 	return
 }

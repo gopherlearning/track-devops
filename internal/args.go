@@ -39,6 +39,7 @@ type AgentArgs struct {
 // ReadConfig задаёт стандартные значения, читает конфиг, проверяет переменное окружение и флаги
 func ReadConfig(cfg interface{}) {
 	fmt.Println(os.Args)
+	fmt.Println(os.Environ())
 	opts := []kong.Option{
 		kong.Name("server"),
 		kong.Description("desc"),

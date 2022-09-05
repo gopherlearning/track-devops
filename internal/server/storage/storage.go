@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func InitStorage(args internal.ServerArgs, logger *zap.Logger) (store repositories.Repository, err error) {
+func InitStorage(args *internal.ServerArgs, logger *zap.Logger) (store repositories.Repository, err error) {
 	if len(args.DatabaseDSN) != 0 {
 		store, err = postgres.NewStorage(args.DatabaseDSN, logger)
 		if err != nil {
@@ -25,7 +25,7 @@ func InitStorage(args internal.ServerArgs, logger *zap.Logger) (store repositori
 	return store, nil
 }
 
-func CloseStorage(args internal.ServerArgs, store repositories.Repository) (err error) {
+func CloseStorage(args *internal.ServerArgs, store repositories.Repository) (err error) {
 	if len(args.DatabaseDSN) != 0 {
 		err = store.(*postgres.Storage).Close(context.Background())
 		if err != nil {

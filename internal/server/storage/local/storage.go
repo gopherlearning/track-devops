@@ -29,6 +29,7 @@ type Storage struct {
 func NewStorage(restore bool, storeInterval *time.Duration, logger *zap.Logger, storeFile ...string) (*Storage, error) {
 	s := &Storage{
 		metrics: make(map[string][]metrics.Metrics),
+		logger:  logger,
 	}
 	if len(storeFile) != 0 {
 		s.storeFile = storeFile[0]

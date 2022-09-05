@@ -32,7 +32,7 @@ func main() {
 			logger.Fatal(err.Error())
 		}
 	}
-	store, err := storage.InitStorage(*args, logger)
+	store, err := storage.InitStorage(args, logger)
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
@@ -42,7 +42,6 @@ func main() {
 	}
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
-
 	if args.ShowStore {
 		go internal.ShowStore(store, logger)
 	}
@@ -57,7 +56,7 @@ func main() {
 	if err != nil {
 		logger.Error(err.Error())
 	}
-	err = storage.CloseStorage(*args, store)
+	err = storage.CloseStorage(args, store)
 	if err != nil {
 		logger.Error(err.Error())
 	}

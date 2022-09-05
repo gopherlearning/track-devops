@@ -85,7 +85,7 @@ func (s *Storage) GetMetric(ctx context.Context, target string, mType string, na
 	var mvalue float64
 	err := s.db.QueryRow(ctx, `select hash,COALESCE(mdelta, 0),COALESCE( mvalue, 0 ) from metrics where target = $1 AND id = $2 AND mtype = $3`, target, name, mType).Scan(&hash, &mdelta, &mvalue)
 	if err != nil {
-		s.logger.Error(err.Error())
+		s.logger.Warn(err.Error())
 		return nil, err
 	}
 	switch mType {
@@ -113,7 +113,7 @@ func (s *Storage) GetMetric(ctx context.Context, target string, mType string, na
 func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics.Metrics) (err error) {
 	old, err := s.Metrics(ctx, target)
 	if err != nil && err != pgx.ErrNoRows {
-		s.logger.Error(err.Error())
+		s.logger.Warn(err.Error())
 		return err
 	}
 	oldMap := make(map[string]metrics.Metrics, len(old[target]))
