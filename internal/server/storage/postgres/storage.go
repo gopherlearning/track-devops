@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
 
+	"github.com/gopherlearning/track-devops/internal"
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/migrate"
 	"github.com/gopherlearning/track-devops/internal/repositories"
@@ -169,7 +170,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			return
 		}
 	}
-	subctx := context.WithValue(ctx, "prepare", "SQL")
+	subctx := context.WithValue(ctx, internal.HelpContextKey, "SQL")
 	stmtUpdate, err := tx.Prepare(subctx, "update", "UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4")
 	if err != nil {
 		return err

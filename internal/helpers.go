@@ -9,6 +9,10 @@ import (
 	"go.uber.org/zap"
 )
 
+type helpContextKey string
+
+var HelpContextKey helpContextKey
+
 // SHOWCONTENT период вывода содержимого хранилища
 const SHOWCONTENT = 5 * time.Second
 
