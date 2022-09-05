@@ -169,9 +169,8 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			return
 		}
 	}
-
-	// шаг 2 — готовим инструкцию
-	stmtUpdate, err := tx.Prepare(ctx, "update", "UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4")
+	subctx := context.WithValue(ctx, "prepare", "SQL")
+	stmtUpdate, err := tx.Prepare(subctx, "update", "UPDATE metrics SET mdelta = $1, mvalue = $2 WHERE id = $3 AND target = $4")
 	if err != nil {
 		return err
 	}

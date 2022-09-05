@@ -48,6 +48,9 @@ go run cmd/server/main.go -a="127.0.0.1:1212" -f="temp-bla" -i="5s" -d="postgres
 # windows
 go run cmd/server/main.go -a="127.0.0.1:1212" -f="temp-bla" -i="5s" -d="postgres://postgres:devDEVdevDEV@10.11.12.40:32007/postgres?sslmode=disable" -r=true -k=bhygyg --generate-crypto-keys --crypto-key="key.pem"
 
+# run with config
+go run cmd/server/main.go -c="cmd/server/config.json"
+
 # build with version
 go build -ldflags "-s -w -X main.buildVersion=v1.0.0" -trimpath  -o cmd/server/server cmd/server/
 ```

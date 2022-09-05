@@ -1,0 +1,7 @@
+{
+  "address": "127.0.0.1:1212",
+  "report_interval": "2s",
+  "poll_interval": "1s",
+  "crypto_key": "key.pub",
+  "format": "json"
+}

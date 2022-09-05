@@ -9,8 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alecthomas/kong"
-	"github.com/caarlos0/env/v6"
 	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal"
@@ -22,23 +20,14 @@ var (
 	buildVersion = "N/A"
 	buildDate    = "N/A"
 	buildCommit  = "N/A"
-	args         internal.AgentArgs
-	logger       *zap.Logger
+	args         = &internal.AgentArgs{}
 )
-
-func init() {
-	internal.FixAgentArgs()
-	logger = internal.InitLogger(args.Verbose)
-}
 
 func main() {
 	fmt.Printf("Build version: %s \nBuild date: %s \nBuild commit: %s \n", buildVersion, buildDate, buildCommit)
-
-	kong.Parse(&args)
-	err := env.Parse(&args)
-	if err != nil {
-		logger.Fatal(err.Error())
-	}
+	var err error
+	internal.ReadConfig(args)
+	logger := internal.InitLogger(args.Verbose)
 	logger.Info("Command arguments", zap.Any("agrs", args))
 	httpClient, err := agent.NewClient(args.CryptoKey)
 	if err != nil {
