@@ -20,7 +20,6 @@ import (
 	"github.com/labstack/echo-contrib/pprof"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
