@@ -89,7 +89,7 @@ func TestServer(t *testing.T) {
 	}{
 		{
 			name:   "Создание сервера",
-			listen: "127.0.0.1:12328",
+			listen: "127.0.0.1:31328",
 		},
 	}
 	for _, tt := range tests {
@@ -113,15 +113,15 @@ func TestServer(t *testing.T) {
 			require.NoError(t, os.WriteFile(pemFile.Name(), []byte(testPem), 0700))
 			s, err := NewEchoServer(store, WithKey([]byte("test")), WithPprof(true), WithCryptoKey(pemFile.Name()))
 			require.NoError(t, err)
-			go s.Start("127.0.0.1:12329")
-			resp, err := http.Get("http://127.0.0.1:12329/ping")
+			go s.Start("127.0.0.1:31329")
+			resp, err := http.Get("http://127.0.0.1:31329/ping")
 			require.NoError(t, err)
 			require.Equal(t, resp.StatusCode, http.StatusOK)
 			require.NoError(t, resp.Body.Close())
-			resp, err = http.Post("http://127.0.0.1:12329/value", "aplication/html", nil)
+			resp, err = http.Post("http://127.0.0.1:31329/value", "aplication/html", nil)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
-			resp, err = http.Post("http://127.0.0.1:12329/update/", "application/json", bytes.NewBufferString(`{"value": 123}`))
+			resp, err = http.Post("http://127.0.0.1:31329/update/", "application/json", bytes.NewBufferString(`{"value": 123}`))
 			require.NoError(t, err)
 			require.Equal(t, resp.StatusCode, http.StatusNotAcceptable)
 			require.NoError(t, resp.Body.Close())
