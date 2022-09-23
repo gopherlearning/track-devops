@@ -13,7 +13,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/sirupsen/logrus"
+	"github.com/gopherlearning/track-devops/internal/agent"
+	"go.uber.org/zap"
 )
 
 type store struct {
@@ -21,6 +22,7 @@ type store struct {
 	memstat *runtime.MemStats
 	key     []byte
 	mu      sync.RWMutex
+	logger  *zap.Logger
 }
 
 var runtimeMetrics = map[string]string{
@@ -54,12 +56,12 @@ var runtimeMetrics = map[string]string{
 }
 
 // NewStore create in memory metrics store
-func NewStore(key []byte) *store {
-
+func NewStore(key []byte, logger *zap.Logger) *store {
 	return &store{
 		memstat: &runtime.MemStats{},
 		custom:  make(map[string]Metric),
 		key:     key,
+		logger:  logger,
 	}
 }
 
@@ -72,7 +74,7 @@ func (s *store) MemStats() []string {
 	for k, v := range runtimeMetrics {
 		f := r.Elem().FieldByName(k)
 		if !f.IsValid() {
-			logrus.Error("Bad Name - ", k)
+			s.logger.Error("Bad Name - " + k)
 			return nil
 		}
 		res = append(res, fmt.Sprintf("/update/%s/%s/%v", v, k, f))
@@ -140,7 +142,7 @@ func (s *store) AllMetrics() []Metrics {
 		}
 		if len(s.key) != 0 {
 			if err := m.Sign(s.key); err != nil {
-				logrus.Error(err)
+				s.logger.Error(err.Error())
 				return nil
 			}
 		}
@@ -162,14 +164,13 @@ func (s *store) Custom() map[string]Metric {
 }
 
 // Save send metrics to store server
-func (s *store) Save(ctx context.Context, client *http.Client, baseURL *string, isJSON bool, batch bool) error {
+func (s *store) Save(ctx context.Context, client agent.Sender, baseURL *string, isJSON bool, batch bool) error {
 	if client != nil && baseURL != nil {
 		if !isJSON {
-			logrus.Info(111111111111111111)
 			res := s.All()
 			errC := make(chan error, len(res))
 			for i := 0; i < len(res); i++ {
-				go func(ctx context.Context, c *http.Client, url string) {
+				go func(ctx context.Context, c agent.Sender, url string) {
 					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 					if err != nil {
 						errC <- err
@@ -179,7 +180,7 @@ func (s *store) Save(ctx context.Context, client *http.Client, baseURL *string, 
 					resp, err := c.Do(req)
 					if err != nil {
 						errC <- err
-						logrus.Error(err)
+						s.logger.Error(err.Error())
 						return
 					}
 					defer resp.Body.Close()
@@ -232,7 +233,7 @@ func (s *store) Save(ctx context.Context, client *http.Client, baseURL *string, 
 	return nil
 }
 
-func sendMetric(ctx context.Context, errC chan error, c *http.Client, url string, metric Metrics) {
+func sendMetric(ctx context.Context, errC chan error, c agent.Sender, url string, metric Metrics) {
 	b, err := json.Marshal(metric)
 	if err != nil || len(fmt.Sprint(metric)) == 0 {
 		if len(fmt.Sprint(metric)) == 0 {
@@ -277,12 +278,11 @@ func sendMetric(ctx context.Context, errC chan error, c *http.Client, url string
 	}
 	errC <- nil
 }
-func sendMetrics(ctx context.Context, c *http.Client, url string, metrics []Metrics) error {
+func sendMetrics(ctx context.Context, c agent.Sender, url string, metrics []Metrics) error {
 	b, err := json.Marshal(metrics)
 	if err != nil {
 		return err
 	}
-	logrus.Info(string(b))
 	buf := bytes.NewBuffer(b)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, buf)
 	if err != nil {

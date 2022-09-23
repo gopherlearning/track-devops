@@ -3,27 +3,34 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha512"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/labstack/echo-contrib/pprof"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
 	"github.com/gopherlearning/track-devops/internal/repositories"
 )
 
 type echoServer struct {
-	s     repositories.Repository
-	e     *echo.Echo
-	loger logrus.FieldLogger
-	key   []byte
+	s      repositories.Repository
+	e      *echo.Echo
+	logger *zap.Logger
+	key    []byte
 }
 
 // echoServerOptionFunc определяет тип функции для опций.
@@ -36,10 +43,69 @@ func WithKey(key []byte) echoServerOptionFunc {
 	}
 }
 
-// WithLoger set loger
-func WithLoger(loger logrus.FieldLogger) echoServerOptionFunc {
+// WithCryptoKey задаёт ключ шифрования соединения с агентом и задаёт middleware для дешифрования тела запроса
+func WithCryptoKey(keyPath string) echoServerOptionFunc {
+	if len(keyPath) == 0 {
+		return func(c *echoServer) {}
+	}
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		zap.L().Error(err.Error())
+		return nil
+	}
+	cryptoKey, rest := pem.Decode(keyPEM)
+	if cryptoKey == nil {
+		zap.L().Error("pem.Decode failed", zap.Any("error", rest))
+		return nil
+	}
+	privKey, err := x509.ParsePKCS1PrivateKey(cryptoKey.Bytes)
+	if err != nil {
+		zap.L().Error("x509.ParsePKCS1PrivateKey", zap.Error(err))
+		return nil
+	}
 	return func(c *echoServer) {
-		c.loger = loger
+		c.e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				if c.Request().Method != echo.POST {
+					return next(c)
+				}
+				if c.Request().Header.Get("Content-Type") != "application/json" {
+					return next(c)
+				}
+				hash := sha512.New()
+				r := c.Request()
+				encrypted := make([]byte, 0)
+				bufEncrypted := bytes.NewBuffer(encrypted)
+				for {
+					b := make([]byte, 0)
+					buf := bytes.NewBuffer(b)
+					v, _ := io.CopyN(buf, r.Body, int64(privKey.PublicKey.Size()))
+					if v == 0 {
+						break
+					}
+					plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, privKey, buf.Bytes(), nil)
+					if err != nil {
+						zap.L().Debug(err.Error())
+						return c.HTML(http.StatusNotAcceptable, err.Error())
+					}
+					_, err = bufEncrypted.Write(plaintext)
+					if err != nil {
+						zap.L().Debug(err.Error())
+						return c.HTML(http.StatusNotAcceptable, err.Error())
+					}
+				}
+				r.ContentLength = int64(bufEncrypted.Len())
+				r.Body = io.NopCloser(bufEncrypted)
+				return next(c)
+			}
+		})
+	}
+}
+
+// WithLogger set logger
+func WithLogger(logger *zap.Logger) echoServerOptionFunc {
+	return func(c *echoServer) {
+		c.logger = logger
 	}
 }
 
@@ -53,11 +119,12 @@ func WithPprof(usePprof bool) echoServerOptionFunc {
 }
 
 // NewechoServer returns http server
-func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) *echoServer {
+func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) (*echoServer, error) {
 	e := echo.New()
 	// e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	serv := &echoServer{s: s, e: e, loger: logrus.StandardLogger()}
+	logger, _ := zap.NewDevelopment()
+	serv := &echoServer{s: s, e: e, logger: logger}
 	serv.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
@@ -69,9 +136,12 @@ func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) *ech
 	serv.e.GET("/ping", serv.Ping)
 	serv.e.GET("/", serv.ListMetrics)
 	for _, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("option error: %v", opt)
+		}
 		opt(serv)
 	}
-	return serv
+	return serv, nil
 }
 
 // GetMetric ...
@@ -157,7 +227,7 @@ func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 	mm := []metrics.Metrics{}
 	err := decoder.Decode(&mm)
 	if err != nil {
-		h.loger.Error(err)
+		h.logger.Error(err.Error())
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if len(h.key) != 0 {
@@ -198,7 +268,7 @@ func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 	m := metrics.Metrics{}
 	err := decoder.Decode(&m)
 	if err != nil {
-		h.loger.Error(err)
+		h.logger.Error(err.Error())
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if len(h.key) != 0 {
@@ -237,7 +307,7 @@ func (h *echoServer) GetMetricJSON(c echo.Context) error {
 	m := metrics.Metrics{}
 	err := decoder.Decode(&m)
 	if err != nil {
-		h.loger.Error(err)
+		h.logger.Error(err.Error())
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), m.MType, m.ID); v != nil {
@@ -245,7 +315,7 @@ func (h *echoServer) GetMetricJSON(c echo.Context) error {
 		if len(h.key) != 0 {
 			err = v.Sign(h.key)
 			if err != nil {
-				h.loger.Error(err)
+				h.logger.Error(err.Error())
 				return c.String(http.StatusBadRequest, err.Error())
 			}
 		}

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestMetrics(t *testing.T) {
@@ -146,8 +146,7 @@ func TestSendMetrics(t *testing.T) {
 }
 
 func TestSave(t *testing.T) {
-	logrus.SetReportCaller(true)
-	m := NewStore([]byte("secret"))
+	m := NewStore([]byte("secret"), zap.L())
 	m.AddCustom(
 		new(PollCount),
 		new(RandomValue),
@@ -193,14 +192,14 @@ func TestSave(t *testing.T) {
 }
 
 func TestAllMetrics(t *testing.T) {
-	m := NewStore([]byte("1234"))
+	m := NewStore([]byte("1234"), zap.L())
 	m.AddCustom(new(PollCount))
 	assert.NotEmpty(t, m.AllMetrics())
 	for _, v := range m.AllMetrics() {
 		assert.NotEmpty(t, v.String())
 		assert.Contains(t, v.StringFull(), " - ")
 	}
-	m = NewStore([]byte("12"))
+	m = NewStore([]byte("12"), zap.L())
 	assert.Nil(t, m.AllMetrics())
 	runtimeMetricsOld := make(map[string]string)
 	for k, v := range runtimeMetrics {
@@ -229,23 +228,23 @@ func TestStore(t *testing.T) {
 	}))
 	// Close the server when test finishes
 	defer server.Close()
-	m := NewStore([]byte("secret"))
+	m := NewStore([]byte("secret"), zap.L())
 	m.AddCustom(
 		new(TestErrorMetric),
 	)
 	assert.Error(t, m.Scrape(), errors.New("TestErrorMetric error"))
 	emulateError = true
-	m = NewStore([]byte("secret"))
+	m = NewStore([]byte("secret"), zap.L())
 	m.AddCustom(new(CPUutilization1))
 	assert.Error(t, m.Scrape())
-	m = NewStore([]byte("secret"))
+	m = NewStore([]byte("secret"), zap.L())
 	m.AddCustom(new(TotalMemory))
 	assert.Error(t, m.Scrape())
-	m = NewStore([]byte("secret"))
+	m = NewStore([]byte("secret"), zap.L())
 	m.AddCustom(new(FreeMemory))
 	assert.Error(t, m.Scrape())
 	emulateError = false
-	m = NewStore([]byte("secret"))
+	m = NewStore([]byte("secret"), zap.L())
 	m.AddCustom(
 		new(PollCount),
 		new(RandomValue),

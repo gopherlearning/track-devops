@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestEchoHandler_Get(t *testing.T) {
@@ -19,14 +19,14 @@ func TestEchoHandler_Get(t *testing.T) {
 	}
 	ret, err := json.Marshal(resGo)
 	require.NoError(t, err)
-	logrus.Info(string(ret))
+	zap.L().Info(string(ret))
 	assert.Equal(t, string(ret), resJSON)
 	resGo2 := make([]Metrics, 0)
 	require.NoError(t, json.Unmarshal([]byte(resJSON), &resGo2))
 	assert.Equal(t, *resGo[0].Delta, *resGo2[0].Delta)
 	assert.Equal(t, *resGo[1].Value, *resGo2[1].Value)
-	logrus.Info(*resGo[0].Delta)
-	logrus.Info(*resGo[0].Delta)
-	logrus.Info(*resGo2[1].Value)
-	logrus.Info(*resGo2[1].Value)
+	zap.L().Info("", zap.Any("", *resGo[0].Delta))
+	zap.L().Info("", zap.Any("", *resGo[0].Delta))
+	zap.L().Info("", zap.Any("", *resGo2[1].Value))
+	zap.L().Info("", zap.Any("", *resGo2[1].Value))
 }
