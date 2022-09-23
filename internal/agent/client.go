@@ -20,12 +20,17 @@ type Sender interface {
 
 // Client клиент с шифрованием запросов
 type Client struct {
-	client *http.Client
-	key    *rsa.PublicKey
+	selfAddress string
+	client      *http.Client
+	key         *rsa.PublicKey
 }
 
 // Do для клиента
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
+	// здесь имитация установки собственного адреса,
+	// для реальной установки адреса отправки можно было бы реализовать функцию
+	// Dial() для транспорта http клиента
+	req.Header.Add("X-Real-IP", c.selfAddress)
 	if req.Method != http.MethodPost {
 		return c.client.Do(req)
 	}
@@ -60,13 +65,16 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 }
 
 // NewClient конструктор для клиента
-func NewClient(keyPath string) (Sender, error) {
-	c := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        10,
-			MaxConnsPerHost:     10,
-			MaxIdleConnsPerHost: 10,
+func NewClient(keyPath string, selfAddress string) (Sender, error) {
+	c := &Client{
+		client: &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConns:        10,
+				MaxConnsPerHost:     10,
+				MaxIdleConnsPerHost: 10,
+			},
 		},
+		selfAddress: selfAddress,
 	}
 	if len(keyPath) == 0 {
 		return c, nil
@@ -83,8 +91,6 @@ func NewClient(keyPath string) (Sender, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{
-		client: c,
-		key:    pubKey,
-	}, nil
+	c.key = pubKey
+	return c, nil
 }

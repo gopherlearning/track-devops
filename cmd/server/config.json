@@ -5,5 +5,6 @@
   "store_file": "temp-bla",
   "database_dsn": "postgres://postgres:devDEVdevDEV@10.11.12.40:32007/postgres?sslmode=disable",
   "crypto_key": "key.pem",
-  "key": "bhygyg"
+  "key": "bhygyg",
+  "trusted_subnet": "127.0.0.1/8"
 }

@@ -36,7 +36,7 @@ func main() {
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
-	s, err := web.NewEchoServer(store, web.WithKey([]byte(args.Key)), web.WithPprof(args.UsePprof), web.WithLogger(logger), web.WithCryptoKey(args.CryptoKey))
+	s, err := web.NewEchoServer(store, web.WithKey([]byte(args.Key)), web.WithPprof(args.UsePprof), web.WithLogger(logger), web.WithCryptoKey(args.CryptoKey), web.WithTrustedSubnet(args.TrustedSubnet))
 	if err != nil {
 		logger.Fatal(err.Error())
 	}

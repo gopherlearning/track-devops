@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -27,10 +28,11 @@ import (
 )
 
 type echoServer struct {
-	s      repositories.Repository
-	e      *echo.Echo
-	logger *zap.Logger
-	key    []byte
+	trusted *net.IPNet
+	s       repositories.Repository
+	e       *echo.Echo
+	logger  *zap.Logger
+	key     []byte
 }
 
 // echoServerOptionFunc определяет тип функции для опций.
@@ -115,6 +117,24 @@ func WithPprof(usePprof bool) echoServerOptionFunc {
 		if usePprof {
 			pprof.Register(c.e)
 		}
+	}
+}
+
+// WithTrustedSubnet задаёт сеть доверенных адресов агентов
+func WithTrustedSubnet(trusted string) echoServerOptionFunc {
+	return func(c *echoServer) {
+		if len(trusted) == 0 {
+			return
+		}
+		_, trusted, err := net.ParseCIDR(trusted)
+		if err != nil {
+			if c.logger != nil {
+				c.logger.Error(err.Error())
+			}
+			return
+		}
+		c.trusted = trusted
+		c.e.Use(c.CheckTrusted)
 	}
 }
 
@@ -340,4 +360,22 @@ func (h *echoServer) Stop() error {
 	defer cancel()
 
 	return h.e.Shutdown(ctx)
+}
+
+// CheckTrusted проверяет вазрешён ли доступ клиенту на основе адреса
+func (h *echoServer) CheckTrusted(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		realIP := c.Request().Header.Get("X-Real-IP")
+		if len(realIP) == 0 {
+			return c.HTML(http.StatusForbidden, "access denied, no header")
+		}
+		ip := net.ParseIP(realIP)
+		if ip == nil {
+			return c.HTML(http.StatusForbidden, "access denied, bad ip")
+		}
+		if !h.trusted.Contains(ip) {
+			return c.HTML(http.StatusForbidden, "access denied")
+		}
+		return next(c)
+	}
 }
