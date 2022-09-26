@@ -30,7 +30,7 @@ func main() {
 	internal.ReadConfig(args)
 	logger := internal.InitLogger(args.Verbose)
 	logger.Info("Command arguments", zap.Any("agrs", args))
-	httpClient, err := agent.NewClient(args.CryptoKey)
+	httpClient, err := agent.NewClient(args.CryptoKey, args.SelfAddress)
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
