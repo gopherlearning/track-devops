@@ -31,7 +31,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	// для реальной установки адреса отправки можно было бы реализовать функцию
 	// Dial() для транспорта http клиента
 	req.Header.Add("X-Real-IP", c.selfAddress)
-	if req.Method != http.MethodPost {
+	if req.Method != http.MethodPost || c.key == nil {
 		return c.client.Do(req)
 	}
 	hash := sha512.New()
