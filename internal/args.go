@@ -23,6 +23,7 @@ type ServerArgs struct {
 	GenerateCryptoKeys bool          `help:"Сгенерировать ключи для ассиметричного шифрования"`
 	CryptoKey          string        `name:"crypto-key" json:"crypto_key" help:"Путь к файлу, где хранятся приватный ключ шифрования" env:"CRYPTO_KEY"`
 	TrustedSubnet      string        `name:"trusted-subnet" json:"trusted_subnet" short:"t" help:"Доверенные сети" env:"TRUSTED_SUBNET"`
+	Transport          string        `name:"transport" json:"transport" help:"Режим приёма соединений от агентов (http, grpc)" default:"http" env:"TRANSPORT"`
 }
 
 type AgentArgs struct {
@@ -36,6 +37,7 @@ type AgentArgs struct {
 	ReportInterval time.Duration `name:"report-interval" json:"report_interval" short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
 	CryptoKey      string        `name:"crypto-key" json:"crypto_key" help:"Путь к файлу, где хранятся публийчный ключ шифрования" env:"CRYPTO_KEY"`
 	SelfAddress    string        `name:"self-address" json:"self_address" help:"Адрес, используемы в качестве исходящего, для отправки запросов к серверу" env:"CRYPTO_KEY" default:"127.0.0.1"`
+	Transport      string        `name:"transport" json:"transport" help:"Режим соединения с сервером (http, grpc)" default:"http" env:"TRANSPORT"`
 }
 
 // ReadConfig задаёт стандартные значения, читает конфиг, проверяет переменное окружение и флаги

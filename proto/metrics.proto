@@ -1,0 +1,28 @@
+syntax = "proto3";
+package track_devops.proto;
+option go_package = "./proto/";
+
+message Empty {}
+
+message Metric {
+  string  id        = 1;
+  string  type      = 2;
+  string  hash      = 3;
+  oneof   value {
+    int64   counter = 4;
+    double  gauge   = 5;
+  }
+}
+
+message MetricRequest {
+  string  id        = 1;
+  string  type      = 2;
+}
+
+
+service Monitoring {
+  rpc Update    (Metric)        returns (Empty);
+  rpc Updates   (stream Metric) returns (Empty);
+  rpc GetMetric (MetricRequest) returns (Metric);
+  rpc Ping      (Empty)         returns (Empty);
+}
