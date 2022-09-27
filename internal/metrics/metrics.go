@@ -16,11 +16,11 @@ var (
 
 // Metrics используется для универсального представления метрики
 type Metrics struct {
-	ID    string   `json:"id"`              // имя метрики
-	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-	Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+	ID    string     `json:"id"`              // имя метрики
+	MType MetricType `json:"type"`            // параметр, принимающий значение gauge или counter
+	Delta *int64     `json:"delta,omitempty"` // значение метрики в случае передачи counter
+	Value *float64   `json:"value,omitempty"` // значение метрики в случае передачи gauge
+	Hash  string     `json:"hash,omitempty"`  // значение хеш-функции
 }
 
 type MetricsJSON struct {
@@ -31,12 +31,12 @@ type MetricsAlias Metrics
 // MarshalJSON реализует интерфейс json.Marshaler.
 func (s Metrics) String() string {
 	switch s.MType {
-	case string(CounterType):
+	case CounterType:
 		if s.Delta == nil {
 			return ""
 		}
 		return fmt.Sprintf(`%d`, *s.Delta)
-	case string(GaugeType):
+	case GaugeType:
 		if s.Value == nil {
 			return ""
 		}
@@ -53,12 +53,12 @@ func (s Metrics) StringFull() string {
 		hash = fmt.Sprintf(" - %s", s.Hash)
 	}
 	switch s.MType {
-	case string(CounterType):
+	case CounterType:
 		if s.Delta == nil {
 			return fmt.Sprintf(`%s - %s%s`, s.MType, s.ID, hash)
 		}
 		return fmt.Sprintf(`%s - %s - %d%s`, s.MType, s.ID, *s.Delta, hash)
-	case string(GaugeType):
+	case GaugeType:
 		if s.Value == nil {
 			return fmt.Sprintf(`%s - %s%s`, s.MType, s.ID, hash)
 		}
@@ -75,9 +75,9 @@ func (s *Metrics) Sign(key []byte) error {
 	}
 	var src []byte
 	switch s.MType {
-	case string(CounterType):
+	case CounterType:
 		src = []byte(fmt.Sprintf("%s:counter:%d", s.ID, *s.Delta))
-	case string(GaugeType):
+	case GaugeType:
 		src = []byte(fmt.Sprintf("%s:gauge:%f", s.ID, *s.Value))
 	default:
 		return ErrNoSuchMetricType
@@ -91,7 +91,7 @@ func (s *Metrics) Sign(key []byte) error {
 // MarshalJSON реализует интерфейс json.Marshaler.
 func (s *Metrics) MarshalJSON() ([]byte, error) {
 	switch s.MType {
-	case string(CounterType):
+	case CounterType:
 		aliasValue := struct {
 			MetricsAlias
 			Delta int64 `json:"delta"`
@@ -100,7 +100,7 @@ func (s *Metrics) MarshalJSON() ([]byte, error) {
 			Delta:        int64(*s.Delta),
 		}
 		return json.Marshal(aliasValue)
-	case string(GaugeType):
+	case GaugeType:
 		aliasValue := struct {
 			MetricsAlias
 			Value float64 `json:"value"`

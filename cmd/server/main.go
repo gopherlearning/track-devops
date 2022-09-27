@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/gopherlearning/track-devops/internal"
+	"github.com/gopherlearning/track-devops/internal/server"
 	"github.com/gopherlearning/track-devops/internal/server/storage"
 	"github.com/gopherlearning/track-devops/internal/server/web"
 )
@@ -36,7 +37,7 @@ func main() {
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
-	s, err := web.NewEchoServer(store, web.WithKey([]byte(args.Key)), web.WithPprof(args.UsePprof), web.WithLogger(logger), web.WithCryptoKey(args.CryptoKey), web.WithTrustedSubnet(args.TrustedSubnet))
+	s, err := server.NewServer(args, store)
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
@@ -45,12 +46,7 @@ func main() {
 	if args.ShowStore {
 		go internal.ShowStore(store, logger)
 	}
-	go func() {
-		err = s.Start(args.ServerAddr)
-		if err != nil {
-			logger.Error(err.Error())
-		}
-	}()
+
 	sig := <-terminate
 	err = s.Stop()
 	if err != nil {

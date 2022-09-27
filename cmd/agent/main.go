@@ -52,7 +52,7 @@ func main() {
 		baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		err := metricStore.Save(ctx, httpClient, &baseURL, args.Format == "json", args.Batch)
+		err := metricStore.Save(ctx, httpClient, &baseURL, args.Format == "json", args.Batch, args.Transport)
 		if err != nil {
 			logger.Error("metric store Save() failed", zap.Error(err))
 		}

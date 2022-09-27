@@ -79,7 +79,7 @@ func (s *Storage) Ping(ctx context.Context) error {
 }
 
 // GetMetric ...
-func (s *Storage) GetMetric(ctx context.Context, target string, mType string, name string) (*metrics.Metrics, error) {
+func (s *Storage) GetMetric(ctx context.Context, target string, mType metrics.MetricType, name string) (*metrics.Metrics, error) {
 	var hash string
 	var mdelta int64
 	var mvalue float64
@@ -89,14 +89,14 @@ func (s *Storage) GetMetric(ctx context.Context, target string, mType string, na
 		return nil, err
 	}
 	switch mType {
-	case string(metrics.CounterType):
+	case metrics.CounterType:
 		return &metrics.Metrics{
 			ID:    name,
 			MType: mType,
 			Delta: &mdelta,
 			Hash:  hash,
 		}, nil
-	case string(metrics.GaugeType):
+	case metrics.GaugeType:
 		return &metrics.Metrics{
 			ID:    name,
 			MType: mType,
@@ -125,7 +125,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 	for _, n := range mm {
 		o, ok := forAdd[n.ID]
 		if ok {
-			if o.MType == string(metrics.CounterType) {
+			if o.MType == metrics.CounterType {
 				m := *o.Delta + *n.Delta
 				n.Delta = &m
 			}
@@ -137,7 +137,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			forAdd[n.ID] = n
 			continue
 		}
-		if n.MType == string(metrics.CounterType) {
+		if n.MType == metrics.CounterType {
 			m := *o.Delta + *n.Delta
 			n.Delta = &m
 		}
@@ -204,7 +204,7 @@ func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metr
 		var target string
 		var id string
 		var hash string
-		var mtype string
+		var mtype metrics.MetricType
 		var mdelta int64
 		var mvalue float64
 		err = rows.Scan(&target, &id, &hash, &mtype, &mdelta, &mvalue)
@@ -216,14 +216,14 @@ func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metr
 			res[target] = make([]metrics.Metrics, 0)
 		}
 		switch mtype {
-		case string(metrics.CounterType):
+		case metrics.CounterType:
 			res[target] = append(res[target], metrics.Metrics{
 				ID:    id,
 				MType: mtype,
 				Delta: &mdelta,
 				Hash:  hash,
 			})
-		case string(metrics.GaugeType):
+		case metrics.GaugeType:
 			res[target] = append(res[target], metrics.Metrics{
 				ID:    id,
 				MType: mtype,

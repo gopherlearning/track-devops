@@ -139,15 +139,30 @@ func WithTrustedSubnet(trusted string) echoServerOptionFunc {
 }
 
 // NewechoServer returns http server
-func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) (*echoServer, error) {
+func NewEchoServer(store repositories.Repository, listen string, debug bool, opts ...echoServerOptionFunc) (*echoServer, error) {
 	e := echo.New()
-	// e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	logger, _ := zap.NewDevelopment()
-	serv := &echoServer{s: s, e: e, logger: logger}
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
+	serv := &echoServer{s: store, e: e, logger: logger}
 	serv.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogURI:    true,
+		LogStatus: true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			logger.Info("request",
+				zap.String("URI", v.URI),
+				zap.Int("status", v.Status),
+			)
+			return nil
+		},
+	}))
+	if !debug {
+		serv.e.Use(middleware.Recover())
+	}
 	serv.e.POST("/update/", serv.UpdateMetricJSON)
 	serv.e.POST("/updates/", serv.UpdatesMetricJSON)
 	serv.e.POST("/value/", serv.GetMetricJSON)
@@ -161,12 +176,21 @@ func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) (*ec
 		}
 		opt(serv)
 	}
+	if len(listen) != 0 {
+		go func() {
+			err = serv.e.Start(listen)
+			if err != nil && err != http.ErrServerClosed {
+				logger.Error(err.Error())
+			}
+		}()
+
+	}
 	return serv, nil
 }
 
 // GetMetric ...
 func (h *echoServer) GetMetric(c echo.Context) error {
-	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), c.Param("type"), c.Param("name")); v != nil {
+	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), metrics.MetricType(c.Param("type")), c.Param("name")); v != nil {
 		return c.HTML(http.StatusOK, v.String())
 	}
 	return c.NoContent(http.StatusNotFound)
@@ -202,7 +226,7 @@ func (h *echoServer) UpdateMetric(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
 		return c.NoContent(http.StatusMethodNotAllowed)
 	}
-	m := metrics.Metrics{MType: c.Param("type"), ID: c.Param("name")}
+	m := metrics.Metrics{MType: metrics.MetricType(c.Param("type")), ID: c.Param("name")}
 	switch c.Param("type") {
 	case string(metrics.CounterType):
 		i, err := strconv.Atoi(c.Param("value"))

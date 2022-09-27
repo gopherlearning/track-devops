@@ -11,19 +11,33 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gopherlearning/track-devops/proto"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
-type Sender interface {
-	Do(req *http.Request) (*http.Response, error)
+// type Sender interface {
+// 	Do(req *http.Request) (*http.Response, error)
+// 	// SendMetric(*proto.Metric) error
+// 	// SendMetrics([]*proto.Metric) error
+// }
+
+type Body interface {
+	int64 | float64
 }
 
 // Client клиент с шифрованием запросов
 type Client struct {
+	transport   string
 	selfAddress string
-	client      *http.Client
+	grpc        *grpc.ClientConn
+	http        *http.Client
 	key         *rsa.PublicKey
 }
+
+func (c *Client) SendMetric(*proto.Metric) error { return nil }
+
+func (c *Client) SendMetrics([]*proto.Metric) error { return nil }
 
 // Do для клиента
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
@@ -32,7 +46,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	// Dial() для транспорта http клиента
 	req.Header.Add("X-Real-IP", c.selfAddress)
 	if req.Method != http.MethodPost || c.key == nil {
-		return c.client.Do(req)
+		return c.http.Do(req)
 	}
 	hash := sha512.New()
 	encrypted := make([]byte, 0)
@@ -57,7 +71,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	}
 	req.ContentLength = int64(bufEncrypted.Len())
 	req.Body = io.NopCloser(bufEncrypted)
-	resp, err := c.client.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -65,9 +79,9 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 }
 
 // NewClient конструктор для клиента
-func NewClient(keyPath string, selfAddress string) (Sender, error) {
+func NewClient(keyPath string, selfAddress string) (*Client, error) {
 	c := &Client{
-		client: &http.Client{
+		http: &http.Client{
 			Transport: &http.Transport{
 				MaxIdleConns:        10,
 				MaxConnsPerHost:     10,

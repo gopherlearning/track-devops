@@ -25,34 +25,34 @@ type store struct {
 	logger  *zap.Logger
 }
 
-var runtimeMetrics = map[string]string{
-	"Alloc":         "gauge",
-	"BuckHashSys":   "gauge",
-	"Frees":         "gauge",
-	"GCCPUFraction": "gauge",
-	"GCSys":         "gauge",
-	"HeapAlloc":     "gauge",
-	"HeapIdle":      "gauge",
-	"HeapInuse":     "gauge",
-	"HeapObjects":   "gauge",
-	"HeapReleased":  "gauge",
-	"HeapSys":       "gauge",
-	"LastGC":        "gauge",
-	"Lookups":       "gauge",
-	"MCacheInuse":   "gauge",
-	"MCacheSys":     "gauge",
-	"MSpanInuse":    "gauge",
-	"MSpanSys":      "gauge",
-	"Mallocs":       "gauge",
-	"NextGC":        "gauge",
-	"NumForcedGC":   "gauge",
-	"NumGC":         "gauge",
-	"OtherSys":      "gauge",
-	"PauseTotalNs":  "gauge",
-	"StackInuse":    "gauge",
-	"StackSys":      "gauge",
-	"Sys":           "gauge",
-	"TotalAlloc":    "gauge",
+var runtimeMetrics = map[string]MetricType{
+	"Alloc":         GaugeType,
+	"BuckHashSys":   GaugeType,
+	"Frees":         GaugeType,
+	"GCCPUFraction": GaugeType,
+	"GCSys":         GaugeType,
+	"HeapAlloc":     GaugeType,
+	"HeapIdle":      GaugeType,
+	"HeapInuse":     GaugeType,
+	"HeapObjects":   GaugeType,
+	"HeapReleased":  GaugeType,
+	"HeapSys":       GaugeType,
+	"LastGC":        GaugeType,
+	"Lookups":       GaugeType,
+	"MCacheInuse":   GaugeType,
+	"MCacheSys":     GaugeType,
+	"MSpanInuse":    GaugeType,
+	"MSpanSys":      GaugeType,
+	"Mallocs":       GaugeType,
+	"NextGC":        GaugeType,
+	"NumForcedGC":   GaugeType,
+	"NumGC":         GaugeType,
+	"OtherSys":      GaugeType,
+	"PauseTotalNs":  GaugeType,
+	"StackInuse":    GaugeType,
+	"StackSys":      GaugeType,
+	"Sys":           GaugeType,
+	"TotalAlloc":    GaugeType,
 }
 
 // NewStore create in memory metrics store
@@ -130,7 +130,7 @@ func (s *store) AllMetrics() []Metrics {
 		switch runtimeMetrics[k] {
 		// case string(CounterType):
 		// 	m.Delta = GetInt64Pointer(f.Int())
-		case string(GaugeType):
+		case GaugeType:
 			var a float64
 			switch f.Type().String() {
 			case "uint64", "uint32":
@@ -164,13 +164,13 @@ func (s *store) Custom() map[string]Metric {
 }
 
 // Save send metrics to store server
-func (s *store) Save(ctx context.Context, client agent.Sender, baseURL *string, isJSON bool, batch bool) error {
+func (s *store) Save(ctx context.Context, client *agent.Client, baseURL *string, isJSON bool, batch bool, transport string) error {
 	if client != nil && baseURL != nil {
 		if !isJSON {
 			res := s.All()
 			errC := make(chan error, len(res))
 			for i := 0; i < len(res); i++ {
-				go func(ctx context.Context, c agent.Sender, url string) {
+				go func(ctx context.Context, c *agent.Client, url string) {
 					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 					if err != nil {
 						errC <- err
@@ -233,7 +233,7 @@ func (s *store) Save(ctx context.Context, client agent.Sender, baseURL *string, 
 	return nil
 }
 
-func sendMetric(ctx context.Context, errC chan error, c agent.Sender, url string, metric Metrics) {
+func sendMetric(ctx context.Context, errC chan error, c *agent.Client, url string, metric Metrics) {
 	b, err := json.Marshal(metric)
 	if err != nil || len(fmt.Sprint(metric)) == 0 {
 		if len(fmt.Sprint(metric)) == 0 {
@@ -278,7 +278,7 @@ func sendMetric(ctx context.Context, errC chan error, c agent.Sender, url string
 	}
 	errC <- nil
 }
-func sendMetrics(ctx context.Context, c agent.Sender, url string, metrics []Metrics) error {
+func sendMetrics(ctx context.Context, c *agent.Client, url string, metrics []Metrics) error {
 	b, err := json.Marshal(metrics)
 	if err != nil {
 		return err
