@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -60,12 +59,7 @@ func ReadConfig(cfg interface{}) {
 func FixArgs() string {
 	var confPath string
 	// только для прохождения теста
-	// skip := false
 	for i := 0; i < len(os.Args); i++ {
-		// if skip {
-		// 	skip = false
-		// 	continue
-		// }
 		if strings.Contains(os.Args[i], "=") {
 			a := strings.Split(os.Args[i], "=")
 			if !strings.Contains(a[0], "-") {
@@ -79,9 +73,7 @@ func FixArgs() string {
 				os.Args[i] = strings.ReplaceAll(os.Args[i], "-r", "--restore")
 				continue
 			}
-			fmt.Println(i, " - ", os.Args[i])
 			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
-			// skip = true
 		}
 	}
 	for i := 0; i < len(os.Args); i++ {
