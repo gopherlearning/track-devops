@@ -13,7 +13,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gopherlearning/track-devops/internal/agent"
+	"github.com/gopherlearning/track-devops/proto"
 	"go.uber.org/zap"
 )
 
@@ -23,6 +23,12 @@ type store struct {
 	key     []byte
 	mu      sync.RWMutex
 	logger  *zap.Logger
+}
+type Sender interface {
+	Do(req *http.Request) (*http.Response, error)
+	SendMetric(*proto.Metric) error
+	SendMetrics([]*proto.Metric) error
+	Type() string
 }
 
 var runtimeMetrics = map[string]MetricType{
@@ -164,13 +170,18 @@ func (s *store) Custom() map[string]Metric {
 }
 
 // Save send metrics to store server
-func (s *store) Save(ctx context.Context, client *agent.Client, baseURL *string, isJSON bool, batch bool, transport string) error {
-	if client != nil && baseURL != nil {
+func (s *store) Save(ctx context.Context, wg *sync.WaitGroup, client Sender, baseURL string, isJSON bool, batch bool, transport string) error {
+	if client == nil && len(baseURL) == 0 {
+		return nil
+	}
+	switch transport {
+	case "http":
+		baseURL = fmt.Sprintf("http://%s", baseURL)
 		if !isJSON {
 			res := s.All()
 			errC := make(chan error, len(res))
 			for i := 0; i < len(res); i++ {
-				go func(ctx context.Context, c *agent.Client, url string) {
+				go func(ctx context.Context, c Sender, url string) {
 					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 					if err != nil {
 						errC <- err
@@ -207,7 +218,7 @@ func (s *store) Save(ctx context.Context, client *agent.Client, baseURL *string,
 						return
 					}
 					errC <- nil
-				}(ctx, client, *baseURL+res[i])
+				}(ctx, client, baseURL+res[i])
 			}
 			for i := 0; i < len(res); i++ {
 				if err := <-errC; err != nil {
@@ -218,22 +229,27 @@ func (s *store) Save(ctx context.Context, client *agent.Client, baseURL *string,
 		}
 		res := s.AllMetrics()
 		if batch {
-			return sendMetrics(ctx, client, *baseURL+"/updates/", res)
+			return sendMetrics(ctx, client, baseURL+"/updates/", res)
 		}
 		errC := make(chan error, len(res))
 		for i := 0; i < len(res); i++ {
-			go sendMetric(ctx, errC, client, *baseURL+"/update/", res[i])
+			go sendMetric(ctx, errC, client, baseURL+"/update/", res[i])
 		}
 		for i := 0; i < len(res); i++ {
 			if err := <-errC; err != nil {
 				return err
 			}
 		}
+	case "grpc":
+
+	default:
+		return fmt.Errorf("транспорт не поддерживаетсяЖ %s", transport)
 	}
+
 	return nil
 }
 
-func sendMetric(ctx context.Context, errC chan error, c *agent.Client, url string, metric Metrics) {
+func sendMetric(ctx context.Context, errC chan error, c Sender, url string, metric Metrics) {
 	b, err := json.Marshal(metric)
 	if err != nil || len(fmt.Sprint(metric)) == 0 {
 		if len(fmt.Sprint(metric)) == 0 {
@@ -278,7 +294,7 @@ func sendMetric(ctx context.Context, errC chan error, c *agent.Client, url strin
 	}
 	errC <- nil
 }
-func sendMetrics(ctx context.Context, c *agent.Client, url string, metrics []Metrics) error {
+func sendMetrics(ctx context.Context, c Sender, url string, metrics []Metrics) error {
 	b, err := json.Marshal(metrics)
 	if err != nil {
 		return err

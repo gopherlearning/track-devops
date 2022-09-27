@@ -2,39 +2,35 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha512"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 
+	"github.com/gopherlearning/track-devops/internal"
 	"github.com/gopherlearning/track-devops/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
-
-// type Sender interface {
-// 	Do(req *http.Request) (*http.Response, error)
-// 	// SendMetric(*proto.Metric) error
-// 	// SendMetrics([]*proto.Metric) error
-// }
-
-type Body interface {
-	int64 | float64
-}
 
 // Client клиент с шифрованием запросов
 type Client struct {
-	transport   string
-	selfAddress string
-	grpc        *grpc.ClientConn
-	http        *http.Client
-	key         *rsa.PublicKey
+	transport     string
+	selfAddress   string
+	serverAddress string
+	grpc          proto.MonitoringClient
+	http          *http.Client
+	key           *rsa.PublicKey
 }
 
+func (c *Client) Type() string                   { return c.transport }
 func (c *Client) SendMetric(*proto.Metric) error { return nil }
 
 func (c *Client) SendMetrics([]*proto.Metric) error { return nil }
@@ -79,21 +75,40 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 }
 
 // NewClient конструктор для клиента
-func NewClient(keyPath string, selfAddress string) (*Client, error) {
+func NewClient(ctx context.Context, args *internal.AgentArgs) (*Client, error) {
 	c := &Client{
-		http: &http.Client{
+		transport:     args.Transport,
+		selfAddress:   args.SelfAddress,
+		serverAddress: args.ServerAddr,
+	}
+
+	switch args.Transport {
+	case "http":
+		c.http = &http.Client{
 			Transport: &http.Transport{
 				MaxIdleConns:        10,
 				MaxConnsPerHost:     10,
 				MaxIdleConnsPerHost: 10,
 			},
-		},
-		selfAddress: selfAddress,
+		}
+	case "grpc":
+		conn, err := grpc.Dial(c.selfAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			<-ctx.Done()
+			conn.Close()
+		}()
+		c.grpc = proto.NewMonitoringClient(conn)
+	default:
+		return nil, fmt.Errorf("транспорт не поддерживаетсяЖ %s", args.Transport)
 	}
-	if len(keyPath) == 0 {
+
+	if len(args.CryptoKey) == 0 {
 		return c, nil
 	}
-	keyPEM, err := os.ReadFile(keyPath)
+	keyPEM, err := os.ReadFile(args.CryptoKey)
 	if err != nil {
 		return nil, err
 	}
