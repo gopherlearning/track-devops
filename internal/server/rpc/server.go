@@ -61,7 +61,11 @@ func WithTrustedSubnet(trusted string) grpcServerOptionFunc {
 					if !ok {
 						return nil, status.Error(codes.InvalidArgument, "access denied, no header")
 					}
-					ip := net.ParseIP(p.Addr.String())
+					realIP, _, err := net.SplitHostPort(p.Addr.String())
+					if err != nil {
+						return nil, status.Error(codes.InvalidArgument, "адрес не определён")
+					}
+					ip := net.ParseIP(realIP)
 					if ip == nil {
 						return nil, status.Error(codes.InvalidArgument, "access denied, bad ip")
 					}
@@ -77,7 +81,11 @@ func WithTrustedSubnet(trusted string) grpcServerOptionFunc {
 					if !ok {
 						return status.Error(codes.InvalidArgument, "access denied, no header")
 					}
-					ip := net.ParseIP(p.Addr.String())
+					realIP, _, err := net.SplitHostPort(p.Addr.String())
+					if err != nil {
+						return status.Error(codes.InvalidArgument, "access denied, bad ip")
+					}
+					ip := net.ParseIP(realIP)
 					if ip == nil {
 						return status.Error(codes.InvalidArgument, "access denied, bad ip")
 					}
@@ -145,13 +153,21 @@ func (s *grpcServer) Update(ctx context.Context, req *proto.Metric) (*proto.Empt
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "адрес не определён")
 	}
-	return s.saveMetric(req, p.Addr.String())
+	realIP, _, err := net.SplitHostPort(p.Addr.String())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "access denied, bad ip")
+	}
+	return s.saveMetric(req, realIP)
 }
 
 // Updates ...
 func (s *grpcServer) Updates(stream proto.Monitoring_UpdatesServer) (err error) {
 	p, ok := peer.FromContext(stream.Context())
 	if !ok {
+		return status.Error(codes.InvalidArgument, "адрес не определён")
+	}
+	realIP, _, err := net.SplitHostPort(p.Addr.String())
+	if err != nil {
 		return status.Error(codes.InvalidArgument, "адрес не определён")
 	}
 	var req *proto.Metric
@@ -163,7 +179,7 @@ func (s *grpcServer) Updates(stream proto.Monitoring_UpdatesServer) (err error) 
 		if err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
-		_, err = s.saveMetric(req, p.Addr.String())
+		_, err = s.saveMetric(req, realIP)
 		if err != nil {
 			return err
 		}
@@ -175,17 +191,21 @@ func (s *grpcServer) GetMetric(ctx context.Context, req *proto.MetricRequest) (*
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "адрес не определён")
 	}
+	realIP, _, err := net.SplitHostPort(p.Addr.String())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "адрес не определён")
+	}
 	if len(protoTypeToMetricType(req.GetType())) == 0 {
 		return nil, status.Error(codes.InvalidArgument, repositories.ErrWrongMetricType.Error())
 	}
-	m, err := s.s.GetMetric(ctx, p.Addr.String(), protoTypeToMetricType(req.GetType()), req.GetId())
+	m, err := s.s.GetMetric(ctx, realIP, protoTypeToMetricType(req.GetType()), req.GetId())
 	if err != nil {
 		return nil, status.Error(codes.NotFound, err.Error())
 	}
 	resp := &proto.Metric{
 		Id:   m.ID,
 		Hash: m.Hash,
-		Type: getMetricProtoType(m),
+		Type: GetMetricProtoType(m),
 	}
 	switch resp.Type {
 	case proto.Type_COUNTER:
@@ -260,7 +280,7 @@ func protoTypeToMetricType(t proto.Type) metrics.MetricType {
 	}
 }
 
-func getMetricProtoType(m *metrics.Metrics) proto.Type {
+func GetMetricProtoType(m *metrics.Metrics) proto.Type {
 	switch m.MType {
 	case metrics.CounterType:
 		return proto.Type_COUNTER

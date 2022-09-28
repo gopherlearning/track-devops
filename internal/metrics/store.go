@@ -13,7 +13,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gopherlearning/track-devops/proto"
 	"go.uber.org/zap"
 )
 
@@ -26,8 +25,8 @@ type store struct {
 }
 type Sender interface {
 	Do(req *http.Request) (*http.Response, error)
-	SendMetric(*proto.Metric) error
-	SendMetrics([]*proto.Metric) error
+	SendMetric(context.Context, Metrics) error
+	SendMetrics(context.Context, []Metrics) error
 	Type() string
 }
 
@@ -170,11 +169,13 @@ func (s *store) Custom() map[string]Metric {
 }
 
 // Save send metrics to store server
-func (s *store) Save(ctx context.Context, wg *sync.WaitGroup, client Sender, baseURL string, isJSON bool, batch bool, transport string) error {
+func (s *store) Save(ctx context.Context, wg *sync.WaitGroup, client Sender, baseURL string, isJSON bool, batch bool) error {
+	defer wg.Done()
 	if client == nil && len(baseURL) == 0 {
 		return nil
 	}
-	switch transport {
+
+	switch client.Type() {
 	case "http":
 		baseURL = fmt.Sprintf("http://%s", baseURL)
 		if !isJSON {
@@ -241,11 +242,28 @@ func (s *store) Save(ctx context.Context, wg *sync.WaitGroup, client Sender, bas
 			}
 		}
 	case "grpc":
+		res := s.AllMetrics()
+		if batch {
 
+			return client.SendMetrics(ctx, res)
+		}
+		errC := make(chan error, len(res))
+		for i := 0; i < len(res); i++ {
+			go func(m Metrics) {
+				err := client.SendMetric(ctx, m)
+				if err != nil {
+					errC <- err
+				}
+			}(res[i])
+		}
+		for i := 0; i < len(res); i++ {
+			if err := <-errC; err != nil {
+				return err
+			}
+		}
 	default:
-		return fmt.Errorf("транспорт не поддерживаетсяЖ %s", transport)
+		return fmt.Errorf("транспорт не поддерживаетсяЖ %s", client.Type())
 	}
-
 	return nil
 }
 

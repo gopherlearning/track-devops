@@ -48,23 +48,13 @@ func main() {
 	)
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
-	// save := func() {
-	// 	wg.Done()
-	// 	baseURL := fmt.Sprintf("http://%s", args.ServerAddr)
-	// 	ctx, cancel := context.WithCancel(context.Background())
-	// 	defer cancel()
-	// 	err := metricStore.Save(ctx, httpClient, &baseURL, args.Format == "json", args.Batch, args.Transport)
-	// 	if err != nil {
-	// 		logger.Error("metric store Save() failed", zap.Error(err))
-	// 	}
-	// }
 	defer wg.Wait()
 	for {
 		select {
 		case s := <-terminate:
 			logger.Info(fmt.Sprintf("Agent stoped by signal \"%v\"", s))
 			wg.Add(1)
-			metricStore.Save(ctx, wg, client, args.ServerAddr, args.Format == "json", args.Batch, args.Transport)
+			metricStore.Save(ctx, wg, client, args.ServerAddr, args.Format == "json", args.Batch)
 			return
 		case <-tickerPoll.C:
 			wg.Add(1)
@@ -77,7 +67,7 @@ func main() {
 			}()
 		case <-tickerReport.C:
 			wg.Add(1)
-			go metricStore.Save(ctx, wg, client, args.ServerAddr, args.Format == "json", args.Batch, args.Transport)
+			go metricStore.Save(ctx, wg, client, args.ServerAddr, args.Format == "json", args.Batch)
 		}
 	}
 

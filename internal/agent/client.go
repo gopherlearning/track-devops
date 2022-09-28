@@ -14,9 +14,13 @@ import (
 	"os"
 
 	"github.com/gopherlearning/track-devops/internal"
+	"github.com/gopherlearning/track-devops/internal/metrics"
+	"github.com/gopherlearning/track-devops/internal/repositories"
+	"github.com/gopherlearning/track-devops/internal/server/rpc"
 	"github.com/gopherlearning/track-devops/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -30,10 +34,46 @@ type Client struct {
 	key           *rsa.PublicKey
 }
 
-func (c *Client) Type() string                   { return c.transport }
-func (c *Client) SendMetric(*proto.Metric) error { return nil }
+func (c *Client) Type() string { return c.transport }
+func (c *Client) SendMetric(ctx context.Context, metric metrics.Metrics) error {
+	msg := convertToProto(metric)
+	if msg == nil {
+		return repositories.ErrWrongMetricType
+	}
+	_, err := c.grpc.Update(ctx, msg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-func (c *Client) SendMetrics([]*proto.Metric) error { return nil }
+func (c *Client) SendMetrics(ctx context.Context, metrics []metrics.Metrics) error {
+	stream, err := c.grpc.Updates(ctx)
+	if err != nil {
+		zap.L().Error(err.Error())
+		return err
+	}
+	l := len(metrics) - 1
+
+	for i, m := range metrics {
+		if i == l {
+			err = stream.CloseSend()
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		msg := convertToProto(m)
+		if msg == nil {
+			return repositories.ErrWrongMetricType
+		}
+		err = stream.Send(msg)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // Do для клиента
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
@@ -92,8 +132,9 @@ func NewClient(ctx context.Context, args *internal.AgentArgs) (*Client, error) {
 			},
 		}
 	case "grpc":
-		conn, err := grpc.Dial(c.selfAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.Dial(c.serverAddress, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithConnectParams(grpc.ConnectParams{Backoff: backoff.DefaultConfig}))
 		if err != nil {
+
 			return nil, err
 		}
 		go func() {
@@ -101,8 +142,9 @@ func NewClient(ctx context.Context, args *internal.AgentArgs) (*Client, error) {
 			conn.Close()
 		}()
 		c.grpc = proto.NewMonitoringClient(conn)
+		zap.L().Info("SendMetrics", zap.Any("metrics", c.grpc))
 	default:
-		return nil, fmt.Errorf("транспорт не поддерживаетсяЖ %s", args.Transport)
+		return nil, fmt.Errorf("транспорт не поддерживается %s", args.Transport)
 	}
 
 	if len(args.CryptoKey) == 0 {
@@ -122,4 +164,17 @@ func NewClient(ctx context.Context, args *internal.AgentArgs) (*Client, error) {
 	}
 	c.key = pubKey
 	return c, nil
+}
+
+func convertToProto(m metrics.Metrics) *proto.Metric {
+	metric := &proto.Metric{Id: m.ID, Hash: m.Hash, Type: rpc.GetMetricProtoType(&m)}
+	switch metric.Type {
+	case proto.Type_COUNTER:
+		metric.Value = &proto.Metric_Counter{Counter: *m.Delta}
+	case proto.Type_GAUGE:
+		metric.Value = &proto.Metric_Gauge{Gauge: *m.Value}
+	default:
+		return nil
+	}
+	return metric
 }
