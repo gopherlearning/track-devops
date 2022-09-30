@@ -180,9 +180,8 @@ func TestClientDo(t *testing.T) {
 		require.NotNil(t, client)
 		req, err := http.NewRequest(http.MethodGet, "", nil)
 		require.NoError(t, err)
-		resp, err := client.Do(req)
+		_, err = client.Do(req)
 		assert.ErrorContains(t, err, "unsupported protocol scheme")
-		defer resp.Body.Close()
 	})
 	t.Run("c.key == nil", func(t *testing.T) {
 		client, err := NewClient(context.TODO(), &internal.AgentArgs{Transport: "http"})
@@ -190,9 +189,8 @@ func TestClientDo(t *testing.T) {
 		require.NotNil(t, client)
 		req, err := http.NewRequest(http.MethodPost, "", nil)
 		require.NoError(t, err)
-		resp, err := client.Do(req)
+		_, err = client.Do(req)
 		assert.ErrorContains(t, err, "unsupported protocol scheme")
-		defer resp.Body.Close()
 	})
 	t.Run("success request encrypted", func(t *testing.T) {
 		// generate a test server so we can capture and inspect the request
@@ -223,9 +221,8 @@ func TestClientDo(t *testing.T) {
 		require.NotNil(t, client)
 		req, err := http.NewRequest(http.MethodPost, "", bytes.NewBufferString("test message"))
 		require.NoError(t, err)
-		resp, err := client.Do(req)
+		_, err = client.Do(req)
 		require.Error(t, err)
-		defer resp.Body.Close()
 	})
 	t.Run("error EncryptOAEP", func(t *testing.T) {
 		testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
@@ -237,9 +234,8 @@ func TestClientDo(t *testing.T) {
 		req, err := http.NewRequest(http.MethodPost, testServer.URL, bytes.NewBufferString("test message"))
 		require.NoError(t, err)
 		client.key.E = 1
-		resp, err := client.Do(req)
+		_, err = client.Do(req)
 		require.Error(t, err)
-		defer resp.Body.Close()
 	})
 	t.Run("error encrypt bufer write", func(t *testing.T) {
 		testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
@@ -252,9 +248,8 @@ func TestClientDo(t *testing.T) {
 		require.NotNil(t, client)
 		req, err := http.NewRequest(http.MethodPost, testServer.URL, bytes.NewBufferString("test message"))
 		require.NoError(t, err)
-		resp, err := client.Do(req)
+		_, err = client.Do(req)
 		require.ErrorContains(t, err, "buffer wryte")
-		defer resp.Body.Close()
 	})
 }
 

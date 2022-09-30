@@ -11,17 +11,19 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
 )
 
 type store struct {
-	custom  map[string]Metric
-	memstat *runtime.MemStats
-	key     []byte
-	mu      sync.RWMutex
-	logger  *zap.Logger
+	custom         map[string]Metric
+	memstat        *runtime.MemStats
+	key            []byte
+	mu             sync.RWMutex
+	logger         *zap.Logger
+	runtimeMetrics map[string]MetricType
 }
 type Sender interface {
 	Do(req *http.Request) (*http.Response, error)
@@ -30,7 +32,7 @@ type Sender interface {
 	Type() string
 }
 
-var runtimeMetrics = map[string]MetricType{
+var defaultRuntimeMetrics = map[string]MetricType{
 	"Alloc":         GaugeType,
 	"BuckHashSys":   GaugeType,
 	"Frees":         GaugeType,
@@ -62,11 +64,16 @@ var runtimeMetrics = map[string]MetricType{
 
 // NewStore create in memory metrics store
 func NewStore(key []byte, logger *zap.Logger) *store {
+	runtimeMetrics := make(map[string]MetricType)
+	for k, v := range defaultRuntimeMetrics {
+		runtimeMetrics[k] = v
+	}
 	return &store{
-		memstat: &runtime.MemStats{},
-		custom:  make(map[string]Metric),
-		key:     key,
-		logger:  logger,
+		memstat:        &runtime.MemStats{},
+		custom:         make(map[string]Metric),
+		key:            key,
+		logger:         logger,
+		runtimeMetrics: runtimeMetrics,
 	}
 }
 
@@ -76,9 +83,9 @@ func (s *store) MemStats() []string {
 	defer s.mu.RUnlock()
 	res := make([]string, 0)
 	r := reflect.ValueOf(s.memstat)
-	for k, v := range runtimeMetrics {
+	for k, v := range s.runtimeMetrics {
 		f := r.Elem().FieldByName(k)
-		if !f.IsValid() {
+		if emulateError || !f.IsValid() {
 			s.logger.Error("Bad Name - " + k)
 			return nil
 		}
@@ -108,7 +115,7 @@ func (s *store) AllMetrics() []Metrics {
 	for k := range s.custom {
 		keys = append(keys, k)
 	}
-	for k := range runtimeMetrics {
+	for k := range s.runtimeMetrics {
 		keys = append(keys, k)
 	}
 
@@ -131,8 +138,8 @@ func (s *store) AllMetrics() []Metrics {
 			fmt.Println("Bad Name - ", k)
 			return nil
 		}
-		m := Metrics{ID: k, MType: runtimeMetrics[k]}
-		switch runtimeMetrics[k] {
+		m := Metrics{ID: k, MType: s.runtimeMetrics[k]}
+		switch s.runtimeMetrics[k] {
 		// case string(CounterType):
 		// 	m.Delta = GetInt64Pointer(f.Int())
 		case GaugeType:
@@ -177,7 +184,9 @@ func (s *store) Save(ctx context.Context, wg *sync.WaitGroup, client Sender, bas
 
 	switch client.Type() {
 	case "http":
-		baseURL = fmt.Sprintf("http://%s", baseURL)
+		if !strings.Contains(baseURL, "http://") {
+			baseURL = fmt.Sprintf("http://%s", baseURL)
+		}
 		if !isJSON {
 			res := s.All()
 			errC := make(chan error, len(res))
@@ -243,26 +252,9 @@ func (s *store) Save(ctx context.Context, wg *sync.WaitGroup, client Sender, bas
 		}
 	case "grpc":
 		res := s.AllMetrics()
-		if batch {
-
-			return client.SendMetrics(ctx, res)
-		}
-		errC := make(chan error, len(res))
-		for i := 0; i < len(res); i++ {
-			go func(m Metrics) {
-				err := client.SendMetrics(ctx, []Metrics{m})
-				if err != nil {
-					errC <- err
-				}
-			}(res[i])
-		}
-		for i := 0; i < len(res); i++ {
-			if err := <-errC; err != nil {
-				return err
-			}
-		}
+		return client.SendMetrics(ctx, res)
 	default:
-		return fmt.Errorf("транспорт не поддерживаетсяЖ %s", client.Type())
+		return fmt.Errorf("транспорт не поддерживается %s", client.Type())
 	}
 	return nil
 }
@@ -314,7 +306,10 @@ func sendMetric(ctx context.Context, errC chan error, c Sender, url string, metr
 }
 func sendMetrics(ctx context.Context, c Sender, url string, metrics []Metrics) error {
 	b, err := json.Marshal(metrics)
-	if err != nil {
+	if metrics == nil || err != nil {
+		if err == nil {
+			err = errors.New("metrics is nil")
+		}
 		return err
 	}
 	buf := bytes.NewBuffer(b)

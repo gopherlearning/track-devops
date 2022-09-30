@@ -3,6 +3,7 @@ package migrate
 import (
 	"context"
 	"embed"
+	"fmt"
 	"os"
 	"path"
 	"sort"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
 )
 
@@ -23,12 +23,7 @@ func MigrateFromDir(ctx context.Context, db *pgx.Conn, migrationDir string, logg
 	if err != nil {
 		return err
 	}
-	createMigrationTable := `
-		CREATE TABLE IF NOT EXISTS migration(
-			id          varchar(255) primary key,
-			modified_at timestamp not null
-		);
-	`
+
 	if _, err = tx.Exec(ctx, createMigrationTable); err != nil {
 		return err
 	}
@@ -112,11 +107,16 @@ func MigrateFromDir(ctx context.Context, db *pgx.Conn, migrationDir string, logg
 
 type PgxIface interface {
 	Begin(context.Context) (pgx.Tx, error)
-	Close(context.Context) error
+	Close()
 }
 
+var createMigrationTable = `CREATE TABLE IF NOT EXISTS migration(
+	id          varchar(255) primary key,
+	modified_at timestamp not null
+);`
+
 // MigrateFromFS executes database migrations from emdebed files
-func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, logger *zap.Logger) error {
+func MigrateFromFS(ctx context.Context, db PgxIface, migrations *embed.FS, logger *zap.Logger) error {
 	if logger == nil {
 		logger, _ = zap.NewDevelopment()
 	}
@@ -124,13 +124,9 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 	if err != nil {
 		return err
 	}
-	createMigrationTable := `
-		CREATE TABLE IF NOT EXISTS migration(
-			id          varchar(255) primary key,
-			modified_at timestamp not null
-		);
-	`
+
 	if _, err = tx.Exec(ctx, createMigrationTable); err != nil {
+		fmt.Println(err)
 		return err
 	}
 
@@ -161,7 +157,6 @@ func MigrateFromFS(ctx context.Context, db *pgxpool.Pool, migrations *embed.FS, 
 
 		mi := &migrationItem{}
 		err = r.Scan(&mi.ID, &mi.ModifiedAt)
-
 		if err != nil && err != pgx.ErrNoRows {
 			err = tx.Rollback(ctx)
 			if err != nil {
