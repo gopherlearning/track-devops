@@ -22,8 +22,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MonitoringClient interface {
-	Update(ctx context.Context, in *Metric, opts ...grpc.CallOption) (*Empty, error)
-	Updates(ctx context.Context, opts ...grpc.CallOption) (Monitoring_UpdatesClient, error)
+	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*Empty, error)
+	// rpc Updates   (stream Metric) returns (Empty);
 	GetMetric(ctx context.Context, in *MetricRequest, opts ...grpc.CallOption) (*Metric, error)
 	Ping(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
 }
@@ -36,47 +36,13 @@ func NewMonitoringClient(cc grpc.ClientConnInterface) MonitoringClient {
 	return &monitoringClient{cc}
 }
 
-func (c *monitoringClient) Update(ctx context.Context, in *Metric, opts ...grpc.CallOption) (*Empty, error) {
+func (c *monitoringClient) Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*Empty, error) {
 	out := new(Empty)
 	err := c.cc.Invoke(ctx, "/track_devops.proto.Monitoring/Update", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
-}
-
-func (c *monitoringClient) Updates(ctx context.Context, opts ...grpc.CallOption) (Monitoring_UpdatesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Monitoring_ServiceDesc.Streams[0], "/track_devops.proto.Monitoring/Updates", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &monitoringUpdatesClient{stream}
-	return x, nil
-}
-
-type Monitoring_UpdatesClient interface {
-	Send(*Metric) error
-	CloseAndRecv() (*Empty, error)
-	grpc.ClientStream
-}
-
-type monitoringUpdatesClient struct {
-	grpc.ClientStream
-}
-
-func (x *monitoringUpdatesClient) Send(m *Metric) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *monitoringUpdatesClient) CloseAndRecv() (*Empty, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(Empty)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
 }
 
 func (c *monitoringClient) GetMetric(ctx context.Context, in *MetricRequest, opts ...grpc.CallOption) (*Metric, error) {
@@ -101,8 +67,8 @@ func (c *monitoringClient) Ping(ctx context.Context, in *Empty, opts ...grpc.Cal
 // All implementations must embed UnimplementedMonitoringServer
 // for forward compatibility
 type MonitoringServer interface {
-	Update(context.Context, *Metric) (*Empty, error)
-	Updates(Monitoring_UpdatesServer) error
+	Update(context.Context, *UpdateRequest) (*Empty, error)
+	// rpc Updates   (stream Metric) returns (Empty);
 	GetMetric(context.Context, *MetricRequest) (*Metric, error)
 	Ping(context.Context, *Empty) (*Empty, error)
 	mustEmbedUnimplementedMonitoringServer()
@@ -112,11 +78,8 @@ type MonitoringServer interface {
 type UnimplementedMonitoringServer struct {
 }
 
-func (UnimplementedMonitoringServer) Update(context.Context, *Metric) (*Empty, error) {
+func (UnimplementedMonitoringServer) Update(context.Context, *UpdateRequest) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
-}
-func (UnimplementedMonitoringServer) Updates(Monitoring_UpdatesServer) error {
-	return status.Errorf(codes.Unimplemented, "method Updates not implemented")
 }
 func (UnimplementedMonitoringServer) GetMetric(context.Context, *MetricRequest) (*Metric, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMetric not implemented")
@@ -138,7 +101,7 @@ func RegisterMonitoringServer(s grpc.ServiceRegistrar, srv MonitoringServer) {
 }
 
 func _Monitoring_Update_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Metric)
+	in := new(UpdateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -150,35 +113,9 @@ func _Monitoring_Update_Handler(srv interface{}, ctx context.Context, dec func(i
 		FullMethod: "/track_devops.proto.Monitoring/Update",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MonitoringServer).Update(ctx, req.(*Metric))
+		return srv.(MonitoringServer).Update(ctx, req.(*UpdateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
-}
-
-func _Monitoring_Updates_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(MonitoringServer).Updates(&monitoringUpdatesServer{stream})
-}
-
-type Monitoring_UpdatesServer interface {
-	SendAndClose(*Empty) error
-	Recv() (*Metric, error)
-	grpc.ServerStream
-}
-
-type monitoringUpdatesServer struct {
-	grpc.ServerStream
-}
-
-func (x *monitoringUpdatesServer) SendAndClose(m *Empty) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *monitoringUpdatesServer) Recv() (*Metric, error) {
-	m := new(Metric)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
 }
 
 func _Monitoring_GetMetric_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -237,12 +174,6 @@ var Monitoring_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Monitoring_Ping_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "Updates",
-			Handler:       _Monitoring_Updates_Handler,
-			ClientStreams: true,
-		},
-	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "proto/metrics.proto",
 }

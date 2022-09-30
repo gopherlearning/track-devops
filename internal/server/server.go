@@ -23,7 +23,7 @@ func NewServer(args *internal.ServerArgs, store repositories.Repository) (s Serv
 		}
 		return s, nil
 	case "grpc":
-		s, err = rpc.NewGrpcServer(store, args.ServerAddr, args.Verbose, rpc.WithKey([]byte(args.Key)), rpc.WithLogger(zap.L()), rpc.WithTrustedSubnet(args.TrustedSubnet))
+		s, err = rpc.NewRpcServer(store, args.ServerAddr, args.Verbose, rpc.WithKey([]byte(args.Key)), rpc.WithLogger(zap.L()), rpc.WithTrustedSubnet(args.TrustedSubnet))
 		if err != nil {
 			return nil, err
 		}

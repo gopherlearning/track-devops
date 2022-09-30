@@ -25,7 +25,7 @@ type store struct {
 }
 type Sender interface {
 	Do(req *http.Request) (*http.Response, error)
-	SendMetric(context.Context, Metrics) error
+	// SendMetric(context.Context, Metrics) error
 	SendMetrics(context.Context, []Metrics) error
 	Type() string
 }
@@ -250,7 +250,7 @@ func (s *store) Save(ctx context.Context, wg *sync.WaitGroup, client Sender, bas
 		errC := make(chan error, len(res))
 		for i := 0; i < len(res); i++ {
 			go func(m Metrics) {
-				err := client.SendMetric(ctx, m)
+				err := client.SendMetrics(ctx, []Metrics{m})
 				if err != nil {
 					errC <- err
 				}

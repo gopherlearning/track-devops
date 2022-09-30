@@ -3,7 +3,6 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 
 	"github.com/gopherlearning/track-devops/internal/metrics"
@@ -18,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type grpcServer struct {
+type RpcServer struct {
 	trusted  *net.IPNet
 	s        repositories.Repository
 	g        *grpc.Server
@@ -28,21 +27,21 @@ type grpcServer struct {
 	proto.UnimplementedMonitoringServer
 }
 
-var _ proto.MonitoringServer = (*grpcServer)(nil)
+var _ proto.MonitoringServer = (*RpcServer)(nil)
 
-// grpcServerOptionFunc определяет тип функции для опций.
-type grpcServerOptionFunc func(*grpcServer)
+// RpcServerOptionFunc определяет тип функции для опций.
+type RpcServerOptionFunc func(*RpcServer)
 
 // WithKey задаёт ключ для подписи
-func WithKey(key []byte) grpcServerOptionFunc {
-	return func(s *grpcServer) {
+func WithKey(key []byte) RpcServerOptionFunc {
+	return func(s *RpcServer) {
 		s.key = key
 	}
 }
 
 // WithTrustedSubnet задаёт сеть доверенных адресов агентов
-func WithTrustedSubnet(trusted string) grpcServerOptionFunc {
-	return func(s *grpcServer) {
+func WithTrustedSubnet(trusted string) RpcServerOptionFunc {
+	return func(s *RpcServer) {
 		if len(trusted) == 0 {
 			return
 		}
@@ -99,13 +98,13 @@ func WithTrustedSubnet(trusted string) grpcServerOptionFunc {
 }
 
 // WithLogger set logger
-func WithLogger(logger *zap.Logger) grpcServerOptionFunc {
-	return func(s *grpcServer) {
+func WithLogger(logger *zap.Logger) RpcServerOptionFunc {
+	return func(s *RpcServer) {
 		s.logger = logger
 	}
 }
 
-func NewGrpcServer(store repositories.Repository, listen string, debug bool, opts ...grpcServerOptionFunc) (*grpcServer, error) {
+func NewRpcServer(store repositories.Repository, listen string, debug bool, opts ...RpcServerOptionFunc) (*RpcServer, error) {
 	servOpts := make([]grpc.ServerOption, 0)
 	if !debug {
 		servOpts = append(servOpts,
@@ -117,7 +116,7 @@ func NewGrpcServer(store repositories.Repository, listen string, debug bool, opt
 			),
 		)
 	}
-	serv := &grpcServer{
+	serv := &RpcServer{
 		s:        store,
 		servOpts: servOpts,
 	}
@@ -128,9 +127,9 @@ func NewGrpcServer(store repositories.Repository, listen string, debug bool, opt
 		}
 		opt(serv)
 	}
-	grpcServer := grpc.NewServer(serv.servOpts...)
-	proto.RegisterMonitoringServer(grpcServer, serv)
-	serv.g = grpcServer
+	RpcServer := grpc.NewServer(serv.servOpts...)
+	proto.RegisterMonitoringServer(RpcServer, serv)
+	serv.g = RpcServer
 	if len(listen) != 0 {
 		go func() {
 			lis, err := net.Listen("tcp", listen)
@@ -139,7 +138,7 @@ func NewGrpcServer(store repositories.Repository, listen string, debug bool, opt
 				return
 			}
 			defer lis.Close()
-			if err := grpcServer.Serve(lis); err != nil {
+			if err := RpcServer.Serve(lis); err != nil {
 				serv.logger.Error(err.Error())
 			}
 		}()
@@ -148,7 +147,7 @@ func NewGrpcServer(store repositories.Repository, listen string, debug bool, opt
 }
 
 // Update ...
-func (s *grpcServer) Update(ctx context.Context, req *proto.Metric) (*proto.Empty, error) {
+func (s *RpcServer) Update(ctx context.Context, req *proto.UpdateRequest) (*proto.Empty, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "адрес не определён")
@@ -157,36 +156,42 @@ func (s *grpcServer) Update(ctx context.Context, req *proto.Metric) (*proto.Empt
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "access denied, bad ip")
 	}
-	return s.saveMetric(req, realIP)
+	for _, v := range req.Metrics {
+		err = s.saveMetric(v, realIP)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &proto.Empty{}, nil
 }
 
 // Updates ...
-func (s *grpcServer) Updates(stream proto.Monitoring_UpdatesServer) (err error) {
-	p, ok := peer.FromContext(stream.Context())
-	if !ok {
-		return status.Error(codes.InvalidArgument, "адрес не определён")
-	}
-	realIP, _, err := net.SplitHostPort(p.Addr.String())
-	if err != nil {
-		return status.Error(codes.InvalidArgument, "адрес не определён")
-	}
-	var req *proto.Metric
-	for {
-		req, err = stream.Recv()
-		if err == io.EOF {
-			return stream.SendAndClose(&proto.Empty{})
-		}
-		if err != nil {
-			return status.Error(codes.InvalidArgument, err.Error())
-		}
-		_, err = s.saveMetric(req, realIP)
-		if err != nil {
-			return err
-		}
-	}
-}
+// func (s *RpcServer) Updates(stream proto.Monitoring_UpdatesServer) (err error) {
+// 	p, ok := peer.FromContext(stream.Context())
+// 	if !ok {
+// 		return status.Error(codes.InvalidArgument, "адрес не определён")
+// 	}
+// 	realIP, _, err := net.SplitHostPort(p.Addr.String())
+// 	if err != nil {
+// 		return status.Error(codes.InvalidArgument, "адрес не определён")
+// 	}
+// 	var req *proto.Metric
+// 	for {
+// 		req, err = stream.Recv()
+// 		if err == io.EOF {
+// 			return stream.SendAndClose(&proto.Empty{})
+// 		}
+// 		if err != nil {
+// 			return status.Error(codes.InvalidArgument, err.Error())
+// 		}
+// 		_, err = s.saveMetric(req, realIP)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+// }
 
-func (s *grpcServer) GetMetric(ctx context.Context, req *proto.MetricRequest) (*proto.Metric, error) {
+func (s *RpcServer) GetMetric(ctx context.Context, req *proto.MetricRequest) (*proto.Metric, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "адрес не определён")
@@ -218,19 +223,19 @@ func (s *grpcServer) GetMetric(ctx context.Context, req *proto.MetricRequest) (*
 	return resp, nil
 }
 
-func (s *grpcServer) Ping(ctx context.Context, req *proto.Empty) (*proto.Empty, error) {
+func (s *RpcServer) Ping(ctx context.Context, req *proto.Empty) (*proto.Empty, error) {
 	if err := s.s.Ping(ctx); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &proto.Empty{}, nil
 }
 
-func (s *grpcServer) Stop() error {
+func (s *RpcServer) Stop() error {
 	s.g.GracefulStop()
 	return nil
 }
 
-func (s *grpcServer) saveMetric(req *proto.Metric, peer string) (*proto.Empty, error) {
+func (s *RpcServer) saveMetric(req *proto.Metric, peer string) error {
 	m := metrics.Metrics{
 		ID:   req.Id,
 		Hash: req.Hash,
@@ -245,28 +250,28 @@ func (s *grpcServer) saveMetric(req *proto.Metric, peer string) (*proto.Empty, e
 		v := req.GetGauge()
 		m.Value = &v
 	default:
-		return nil, status.Error(codes.InvalidArgument, repositories.ErrWrongMetricType.Error())
+		return status.Error(codes.InvalidArgument, repositories.ErrWrongMetricType.Error())
 	}
 	if len(s.key) != 0 {
 		recived := m.Hash
 		err := m.Sign(s.key)
 		if err != nil || recived != m.Hash {
-			return nil, status.Error(codes.InvalidArgument, "подпись не соответствует ожиданиям")
+			return status.Error(codes.InvalidArgument, "подпись не соответствует ожиданиям")
 		}
 	}
 	if err := s.s.UpdateMetric(context.TODO(), peer, m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
-			return nil, status.Error(codes.NotFound, err.Error())
+			return status.Error(codes.NotFound, err.Error())
 		case repositories.ErrWrongMetricValue:
-			return nil, status.Error(codes.InvalidArgument, err.Error())
+			return status.Error(codes.InvalidArgument, err.Error())
 		case repositories.ErrWrongValueInStorage:
-			return nil, status.Error(codes.Unimplemented, err.Error())
+			return status.Error(codes.Unimplemented, err.Error())
 		default:
-			return nil, status.Error(codes.Internal, err.Error())
+			return status.Error(codes.Internal, err.Error())
 		}
 	}
-	return &proto.Empty{}, nil
+	return nil
 }
 
 func protoTypeToMetricType(t proto.Type) metrics.MetricType {

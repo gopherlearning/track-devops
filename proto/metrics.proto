@@ -25,10 +25,13 @@ message MetricRequest {
   Type    type      = 2;
 }
 
+message UpdateRequest {
+  repeated Metric metrics = 1;
+}
 
 service Monitoring {
-  rpc Update    (Metric)        returns (Empty);
-  rpc Updates   (stream Metric) returns (Empty);
+  rpc Update    (UpdateRequest) returns (Empty);
+  // rpc Updates   (stream Metric) returns (Empty);
   rpc GetMetric (MetricRequest) returns (Metric);
   rpc Ping      (Empty)         returns (Empty);
 }
