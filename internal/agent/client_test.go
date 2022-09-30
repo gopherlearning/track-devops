@@ -62,7 +62,7 @@ func dialer() func(context.Context, string) (net.Conn, error) {
 	}
 }
 
-func TestMonitoringClient_Update(t *testing.T) {
+func TestMonitoringClientUpdate(t *testing.T) {
 	ctx := context.TODO()
 	t.Run("grpc dial error", func(t *testing.T) {
 		_, err := NewClient(ctx, &internal.AgentArgs{Transport: "grpc", ServerAddr: "bla://bla"}, WithGRPCOpts(grpc.WithBlock()))
@@ -107,7 +107,7 @@ func TestMonitoringClient_Update(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "grpc", client.Type())
-	tests_Updates := []struct {
+	testsUpdates := []struct {
 		name string
 		req  []metrics.Metrics
 		err  error
@@ -150,7 +150,7 @@ func TestMonitoringClient_Update(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests_Updates {
+	for _, tt := range testsUpdates {
 		t.Run(tt.name, func(t *testing.T) {
 			err := client.SendMetrics(ctx, tt.req)
 			if tt.err != nil {
