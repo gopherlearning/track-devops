@@ -66,41 +66,45 @@ func WithCryptoKey(keyPath string) echoServerOptionFunc {
 		return nil
 	}
 	return func(c *echoServer) {
-		c.e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				if c.Request().Method != echo.POST {
-					return next(c)
-				}
-				if c.Request().Header.Get("Content-Type") != "application/json" {
-					return next(c)
-				}
-				hash := sha512.New()
-				r := c.Request()
-				encrypted := make([]byte, 0)
-				bufEncrypted := bytes.NewBuffer(encrypted)
-				for {
-					b := make([]byte, 0)
-					buf := bytes.NewBuffer(b)
-					v, _ := io.CopyN(buf, r.Body, int64(privKey.PublicKey.Size()))
-					if v == 0 {
-						break
-					}
-					plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, privKey, buf.Bytes(), nil)
-					if err != nil {
-						zap.L().Debug(err.Error())
-						return c.HTML(http.StatusNotAcceptable, err.Error())
-					}
-					_, err = bufEncrypted.Write(plaintext)
-					if err != nil {
-						zap.L().Debug(err.Error())
-						return c.HTML(http.StatusNotAcceptable, err.Error())
-					}
-				}
-				r.ContentLength = int64(bufEncrypted.Len())
-				r.Body = io.NopCloser(bufEncrypted)
+		c.e.Use(cryptoMiddleware(privKey))
+	}
+}
+
+func cryptoMiddleware(privKey *rsa.PrivateKey) func(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if c.Request().Method != echo.POST {
 				return next(c)
 			}
-		})
+			if c.Request().Header.Get("Content-Type") != "application/json" {
+				return next(c)
+			}
+			hash := sha512.New()
+			r := c.Request()
+			encrypted := make([]byte, 0)
+			bufEncrypted := bytes.NewBuffer(encrypted)
+			for {
+				b := make([]byte, 0)
+				buf := bytes.NewBuffer(b)
+				v, _ := io.CopyN(buf, r.Body, int64(privKey.PublicKey.Size()))
+				if v == 0 {
+					break
+				}
+				plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, privKey, buf.Bytes(), nil)
+				if err != nil {
+					zap.L().Debug(err.Error())
+					return c.HTML(http.StatusNotAcceptable, err.Error())
+				}
+				_, err = bufEncrypted.Write(plaintext)
+				if err != nil {
+					zap.L().Debug(err.Error())
+					return c.HTML(http.StatusNotAcceptable, err.Error())
+				}
+			}
+			r.ContentLength = int64(bufEncrypted.Len())
+			r.Body = io.NopCloser(bufEncrypted)
+			return next(c)
+		}
 	}
 }
 
@@ -141,11 +145,7 @@ func WithTrustedSubnet(trusted string) echoServerOptionFunc {
 // NewechoServer returns http server
 func NewEchoServer(store repositories.Repository, listen string, debug bool, opts ...echoServerOptionFunc) (*echoServer, error) {
 	e := echo.New()
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
-	serv := &echoServer{s: store, e: e, logger: logger}
+	serv := &echoServer{s: store, e: e, logger: zap.L()}
 	serv.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
@@ -153,7 +153,7 @@ func NewEchoServer(store repositories.Repository, listen string, debug bool, opt
 		LogURI:    true,
 		LogStatus: true,
 		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
-			logger.Info("request",
+			serv.logger.Info("request",
 				zap.String("URI", v.URI),
 				zap.Int("status", v.Status),
 			)
@@ -178,9 +178,9 @@ func NewEchoServer(store repositories.Repository, listen string, debug bool, opt
 	}
 	if len(listen) != 0 {
 		go func() {
-			err = serv.e.Start(listen)
+			err := serv.e.Start(listen)
 			if err != nil && err != http.ErrServerClosed {
-				logger.Error(err.Error())
+				serv.logger.Error(err.Error())
 			}
 		}()
 
@@ -224,7 +224,8 @@ func (h *echoServer) ListMetrics(c echo.Context) error {
 // UpdateMetric ...
 func (h *echoServer) UpdateMetric(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusMethodNotAllowed)
+		c.Response().Status = http.StatusMethodNotAllowed
+		return errors.New("method not allowed")
 	}
 	m := metrics.Metrics{MType: metrics.MetricType(c.Param("type")), ID: c.Param("name")}
 	switch c.Param("type") {
@@ -241,9 +242,10 @@ func (h *echoServer) UpdateMetric(c echo.Context) error {
 		}
 		m.Value = metrics.GetFloat64Pointer(float64(i))
 	default:
+
 		return c.HTML(http.StatusNotImplemented, repositories.ErrWrongMetricType.Error())
 	}
-	if err := h.s.UpdateMetric(context.TODO(), c.RealIP(), m); err != nil {
+	if err := h.s.UpdateMetric(c.Request().Context(), c.RealIP(), m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -261,7 +263,8 @@ func (h *echoServer) UpdateMetric(c echo.Context) error {
 // UpdatesMetricJSON ...
 func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusMethodNotAllowed)
+		c.Response().Status = http.StatusMethodNotAllowed
+		return errors.New("method not allowed")
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
@@ -275,6 +278,7 @@ func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if len(h.key) != 0 {
+		fmt.Println(h.key)
 		for _, v := range mm {
 			recived := v.Hash
 			err = v.Sign(h.key)
@@ -302,7 +306,8 @@ func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 // UpdateMetricJSON ...
 func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusMethodNotAllowed)
+		c.Response().Status = http.StatusMethodNotAllowed
+		return errors.New("method not allowed")
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
@@ -341,7 +346,8 @@ func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 // GetMetricJSON ...
 func (h *echoServer) GetMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusMethodNotAllowed)
+		c.Response().Status = http.StatusMethodNotAllowed
+		return errors.New("method not allowed")
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
