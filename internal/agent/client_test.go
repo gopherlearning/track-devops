@@ -180,8 +180,12 @@ func TestClientDo(t *testing.T) {
 		require.NotNil(t, client)
 		req, err := http.NewRequest(http.MethodGet, "", nil)
 		require.NoError(t, err)
-		_, err = client.Do(req)
+		resp, err := client.Do(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
 		assert.ErrorContains(t, err, "unsupported protocol scheme")
+
 	})
 	t.Run("c.key == nil", func(t *testing.T) {
 		client, err := NewClient(context.TODO(), &internal.AgentArgs{Transport: "http"})
@@ -189,7 +193,10 @@ func TestClientDo(t *testing.T) {
 		require.NotNil(t, client)
 		req, err := http.NewRequest(http.MethodPost, "", nil)
 		require.NoError(t, err)
-		_, err = client.Do(req)
+		resp, err := client.Do(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
 		assert.ErrorContains(t, err, "unsupported protocol scheme")
 	})
 	t.Run("success request encrypted", func(t *testing.T) {
@@ -221,7 +228,10 @@ func TestClientDo(t *testing.T) {
 		require.NotNil(t, client)
 		req, err := http.NewRequest(http.MethodPost, "", bytes.NewBufferString("test message"))
 		require.NoError(t, err)
-		_, err = client.Do(req)
+		resp, err := client.Do(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
 		require.Error(t, err)
 	})
 	t.Run("error EncryptOAEP", func(t *testing.T) {
@@ -234,7 +244,10 @@ func TestClientDo(t *testing.T) {
 		req, err := http.NewRequest(http.MethodPost, testServer.URL, bytes.NewBufferString("test message"))
 		require.NoError(t, err)
 		client.key.E = 1
-		_, err = client.Do(req)
+		resp, err := client.Do(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
 		require.Error(t, err)
 	})
 	t.Run("error encrypt bufer write", func(t *testing.T) {
@@ -248,7 +261,10 @@ func TestClientDo(t *testing.T) {
 		require.NotNil(t, client)
 		req, err := http.NewRequest(http.MethodPost, testServer.URL, bytes.NewBufferString("test message"))
 		require.NoError(t, err)
-		_, err = client.Do(req)
+		resp, err := client.Do(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
 		require.ErrorContains(t, err, "buffer wryte")
 	})
 }
