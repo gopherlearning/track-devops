@@ -10,6 +10,7 @@ require (
 	github.com/jackc/pgx/v4 v4.17.0
 	github.com/labstack/echo-contrib v0.13.0
 	github.com/labstack/echo/v4 v4.8.0
+	github.com/pashagolub/pgxmock v1.8.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/zap v1.23.0

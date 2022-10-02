@@ -221,3 +221,18 @@ func TestStorage_Update(t *testing.T) {
 	}
 
 }
+
+func TestStorage_GetMetric(t *testing.T) {
+	s := newStorage(t)
+	_, err := s.GetMetric(context.TODO(), "127.0.0.1", metrics.CounterType, "bla")
+	assert.ErrorIs(t, err, repositories.ErrWrongMetricValue)
+	s.metrics["127.0.0.1"] = []metrics.Metrics{{ID: "bla", MType: metrics.CounterType, Delta: metrics.GetInt64Pointer(1)}}
+	m, err := s.GetMetric(context.TODO(), "127.0.0.1", metrics.CounterType, "bla")
+	assert.NoError(t, err)
+	assert.Equal(t, *m.Delta, int64(1))
+	t.Run("test ping", func(t *testing.T) {
+		assert.NoError(t, s.Ping(context.TODO()))
+		s.PingError = true
+		assert.ErrorContains(t, s.Ping(context.TODO()), "emulate error for test")
+	})
+}

@@ -220,20 +220,14 @@ func Test_echoServer_UpdateMetric(t *testing.T) {
 			status: http.StatusOK,
 			s:      s,
 		},
-		// {
-		// 	req: ,
-		// 	uri: ,
-		// 	status: ,
-		// 	s: s,
-		// },
-
 	}
 	for _, v := range tests {
 		t.Run(v.req.RequestURI, func(t *testing.T) {
-			resp := httptest.NewRecorder()
-			s.e.ServeHTTP(resp, v.req)
-			assert.Equal(t, resp.Result().StatusCode, v.status)
-			resp.Result().Body.Close()
+			w := httptest.NewRecorder()
+			s.e.ServeHTTP(w, v.req)
+			resp := w.Result()
+			assert.Equal(t, resp.StatusCode, v.status)
+			resp.Body.Close()
 		})
 	}
 
@@ -315,16 +309,18 @@ func Test_echoServer_UpdatesMetricJSON(t *testing.T) {
 	}
 	for _, v := range tests {
 		t.Run(v.err, func(t *testing.T) {
-			resp := httptest.NewRecorder()
+			w := httptest.NewRecorder()
 			v.req.Header.Add("Content-Type", v.content)
-			v.s.e.ServeHTTP(resp, v.req)
-			assert.Equal(t, resp.Result().StatusCode, v.status)
+			v.s.e.ServeHTTP(w, v.req)
+			resp := w.Result()
+			assert.Equal(t, resp.StatusCode, v.status)
 			if len(v.err) != 0 {
 				b, err := io.ReadAll(resp.Body)
 				assert.NoError(t, err)
 				assert.Contains(t, string(b), v.err)
 			}
-			resp.Result().Body.Close()
+			s.e.ServeHTTP(w, v.req)
+			resp.Body.Close()
 		})
 	}
 
@@ -406,16 +402,17 @@ func Test_echoServer_UpdateMetricJSON(t *testing.T) {
 	}
 	for _, v := range tests {
 		t.Run(v.err, func(t *testing.T) {
-			resp := httptest.NewRecorder()
+			w := httptest.NewRecorder()
 			v.req.Header.Add("Content-Type", v.content)
-			v.s.e.ServeHTTP(resp, v.req)
-			assert.Equal(t, resp.Result().StatusCode, v.status)
+			v.s.e.ServeHTTP(w, v.req)
+			resp := w.Result()
+			assert.Equal(t, resp.StatusCode, v.status)
 			if len(v.err) != 0 {
 				b, err := io.ReadAll(resp.Body)
 				assert.NoError(t, err)
 				assert.Contains(t, string(b), v.err)
 			}
-			resp.Result().Body.Close()
+			resp.Body.Close()
 		})
 	}
 
@@ -468,16 +465,17 @@ func Test_echoServer_GetMetricJSON(t *testing.T) {
 	}
 	for _, v := range tests {
 		t.Run(v.err, func(t *testing.T) {
-			resp := httptest.NewRecorder()
+			w := httptest.NewRecorder()
 			v.req.Header.Add("Content-Type", v.content)
-			v.s.e.ServeHTTP(resp, v.req)
-			assert.Equal(t, resp.Result().StatusCode, v.status)
+			v.s.e.ServeHTTP(w, v.req)
+			resp := w.Result()
+			assert.Equal(t, resp.StatusCode, v.status)
 			if len(v.err) != 0 {
 				b, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				assert.Contains(t, string(b), v.err)
 			}
-			defer resp.Result().Body.Close()
+			resp.Body.Close()
 		})
 	}
 

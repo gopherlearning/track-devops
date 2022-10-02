@@ -92,7 +92,7 @@ func (s *Storage) GetMetric(ctx context.Context, target string, mtype metrics.Me
 			}
 		}
 	}
-	return nil, nil
+	return nil, repositories.ErrWrongMetricValue
 }
 
 // Ping заглушка
