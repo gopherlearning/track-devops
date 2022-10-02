@@ -325,14 +325,13 @@ func (h *echoServer) GetMetricJSON(c echo.Context) error {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), m.MType, m.ID); v != nil {
-
-		// if len(h.key) != 0 {
-		// 	err = v.Sign(h.key)
-		// 	if err != nil {
-		// 		h.logger.Error(err.Error())
-		// 		return c.String(http.StatusBadRequest, err.Error())
-		// 	}
-		// }
+		if len(h.key) != 0 {
+			err = v.Sign(h.key)
+			if err != nil {
+				h.logger.Error(err.Error())
+				return c.String(http.StatusBadRequest, err.Error())
+			}
+		}
 		return c.JSON(http.StatusOK, v)
 	}
 	return c.NoContent(http.StatusNotFound)
