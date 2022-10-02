@@ -321,7 +321,7 @@ func Test_echoServer_UpdatesMetricJSON(t *testing.T) {
 			assert.Equal(t, resp.Result().StatusCode, v.status)
 			if len(v.err) != 0 {
 				b, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Contains(t, string(b), v.err)
 			}
 			resp.Result().Body.Close()
@@ -412,7 +412,7 @@ func Test_echoServer_UpdateMetricJSON(t *testing.T) {
 			assert.Equal(t, resp.Result().StatusCode, v.status)
 			if len(v.err) != 0 {
 				b, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Contains(t, string(b), v.err)
 			}
 			resp.Result().Body.Close()
@@ -477,6 +477,7 @@ func Test_echoServer_GetMetricJSON(t *testing.T) {
 				require.NoError(t, err)
 				assert.Contains(t, string(b), v.err)
 			}
+			defer resp.Result().Body.Close()
 		})
 	}
 
