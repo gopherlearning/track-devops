@@ -28,11 +28,12 @@ import (
 )
 
 type echoServer struct {
-	trusted *net.IPNet
-	s       repositories.Repository
-	e       *echo.Echo
-	logger  *zap.Logger
-	key     []byte
+	trusted    *net.IPNet
+	s          repositories.Repository
+	e          *echo.Echo
+	logger     *zap.Logger
+	key        []byte
+	privateKey *rsa.PrivateKey
 }
 
 // echoServerOptionFunc определяет тип функции для опций.
@@ -66,45 +67,8 @@ func WithCryptoKey(keyPath string) echoServerOptionFunc {
 		return nil
 	}
 	return func(c *echoServer) {
-		c.e.Use(cryptoMiddleware(privKey))
-	}
-}
-
-func cryptoMiddleware(privKey *rsa.PrivateKey) func(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			if c.Request().Method != echo.POST {
-				return next(c)
-			}
-			if c.Request().Header.Get("Content-Type") != "application/json" {
-				return next(c)
-			}
-			hash := sha512.New()
-			r := c.Request()
-			encrypted := make([]byte, 0)
-			bufEncrypted := bytes.NewBuffer(encrypted)
-			for {
-				b := make([]byte, 0)
-				buf := bytes.NewBuffer(b)
-				v, _ := io.CopyN(buf, r.Body, int64(privKey.PublicKey.Size()))
-				if v == 0 {
-					break
-				}
-				plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, privKey, buf.Bytes(), nil)
-				if err != nil {
-					zap.L().Debug(err.Error())
-					return c.HTML(http.StatusNotAcceptable, err.Error())
-				}
-				_, err = bufEncrypted.Write(plaintext)
-				if err != nil {
-					zap.L().Debug(err.Error())
-					return c.HTML(http.StatusNotAcceptable, err.Error())
-				}
-			}
-			r.ContentLength = int64(bufEncrypted.Len())
-			r.Body = io.NopCloser(bufEncrypted)
-			return next(c)
-		}
+		c.privateKey = privKey
+		c.e.Use(c.cryptoMiddleware)
 	}
 }
 
@@ -138,7 +102,7 @@ func WithTrustedSubnet(trusted string) echoServerOptionFunc {
 			return
 		}
 		c.trusted = trusted
-		c.e.Use(c.CheckTrusted)
+		c.e.Use(c.checkTrusted)
 	}
 }
 
@@ -362,13 +326,13 @@ func (h *echoServer) GetMetricJSON(c echo.Context) error {
 	}
 	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), m.MType, m.ID); v != nil {
 
-		if len(h.key) != 0 {
-			err = v.Sign(h.key)
-			if err != nil {
-				h.logger.Error(err.Error())
-				return c.String(http.StatusBadRequest, err.Error())
-			}
-		}
+		// if len(h.key) != 0 {
+		// 	err = v.Sign(h.key)
+		// 	if err != nil {
+		// 		h.logger.Error(err.Error())
+		// 		return c.String(http.StatusBadRequest, err.Error())
+		// 	}
+		// }
 		return c.JSON(http.StatusOK, v)
 	}
 	return c.NoContent(http.StatusNotFound)
@@ -393,7 +357,7 @@ func (h *echoServer) Stop() error {
 }
 
 // CheckTrusted проверяет вазрешён ли доступ клиенту на основе адреса
-func (h *echoServer) CheckTrusted(next echo.HandlerFunc) echo.HandlerFunc {
+func (h *echoServer) checkTrusted(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		realIP := c.Request().Header.Get("X-Real-IP")
 		if len(realIP) == 0 {
@@ -406,6 +370,36 @@ func (h *echoServer) CheckTrusted(next echo.HandlerFunc) echo.HandlerFunc {
 		if !h.trusted.Contains(ip) {
 			return c.HTML(http.StatusForbidden, "access denied")
 		}
+		return next(c)
+	}
+}
+
+func (h *echoServer) cryptoMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		hash := sha512.New()
+		r := c.Request()
+		encrypted := make([]byte, 0)
+		bufEncrypted := bytes.NewBuffer(encrypted)
+		for {
+			b := make([]byte, 0)
+			buf := bytes.NewBuffer(b)
+			v, _ := io.CopyN(buf, r.Body, int64(h.privateKey.PublicKey.Size()))
+			if v == 0 {
+				break
+			}
+			plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, h.privateKey, buf.Bytes(), nil)
+			if err != nil {
+				zap.L().Debug(err.Error())
+				return c.HTML(http.StatusNotAcceptable, err.Error())
+			}
+			_, err = bufEncrypted.Write(plaintext)
+			if err != nil {
+				zap.L().Debug(err.Error())
+				return c.HTML(http.StatusNotAcceptable, err.Error())
+			}
+		}
+		r.ContentLength = int64(bufEncrypted.Len())
+		r.Body = io.NopCloser(bufEncrypted)
 		return next(c)
 	}
 }

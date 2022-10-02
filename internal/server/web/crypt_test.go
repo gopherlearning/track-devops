@@ -59,9 +59,9 @@ func TestGenerateCryptoKeys(t *testing.T) {
 		},
 		{
 			name:    "error os.WriteFile private",
-			args:    args{keyPath: tmp.Name()},
+			args:    args{keyPath: "/root/aaa/aaa"},
 			wantErr: true,
-			env:     "error ",
+			env:     "error os.WriteFile private 5",
 		},
 	}
 	for _, tt := range tests {
