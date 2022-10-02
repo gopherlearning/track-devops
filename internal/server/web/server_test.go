@@ -292,9 +292,9 @@ func Test_echoServer_UpdateMetric(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.req.RequestURI, func(t *testing.T) {
 			resp := httptest.NewRecorder()
+			defer resp.Result().Body.Close()
 			s.e.ServeHTTP(resp, v.req)
 			assert.Equal(t, resp.Result().StatusCode, v.status)
-			fmt.Println(resp.Result().Status)
 		})
 	}
 
@@ -386,6 +386,7 @@ func Test_echoServer_UpdatesMetricJSON(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.err, func(t *testing.T) {
 			resp := httptest.NewRecorder()
+			defer resp.Result().Body.Close()
 			v.req.Header.Add("Content-Type", v.content)
 			v.s.e.ServeHTTP(resp, v.req)
 			assert.Equal(t, resp.Result().StatusCode, v.status)
@@ -485,8 +486,10 @@ func Test_echoServer_UpdateMetricJSON(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.err, func(t *testing.T) {
 			resp := httptest.NewRecorder()
+			defer resp.Result().Body.Close()
 			v.req.Header.Add("Content-Type", v.content)
 			v.s.e.ServeHTTP(resp, v.req)
+			defer resp.Result().Body.Close()
 			assert.Equal(t, resp.Result().StatusCode, v.status)
 			if len(v.err) != 0 {
 				b, err := io.ReadAll(resp.Body)

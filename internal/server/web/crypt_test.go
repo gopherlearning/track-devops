@@ -2,11 +2,11 @@ package web
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateCryptoKeys(t *testing.T) {
@@ -15,7 +15,9 @@ func TestGenerateCryptoKeys(t *testing.T) {
 	emulatedError = "must error 0"
 	assert.Error(t, emulateError(nil, 0))
 	emulatedError = ""
-
+	tmp, err := os.CreateTemp(os.TempDir(), "go_test")
+	require.NoError(t, err)
+	require.FileExists(t, tmp.Name())
 	type args struct {
 		keyPath string
 	}
@@ -27,7 +29,7 @@ func TestGenerateCryptoKeys(t *testing.T) {
 	}{
 		{
 			name:    "success",
-			args:    args{keyPath: fmt.Sprintf("%s%sgoTestPem", os.TempDir(), string(os.PathSeparator))},
+			args:    args{keyPath: tmp.Name()},
 			wantErr: false,
 			env:     "",
 		},
@@ -51,13 +53,13 @@ func TestGenerateCryptoKeys(t *testing.T) {
 		},
 		{
 			name:    "error os.WriteFile public",
-			args:    args{keyPath: fmt.Sprintf("%s%sgoTestPem", os.TempDir(), string(os.PathSeparator))},
+			args:    args{keyPath: tmp.Name()},
 			wantErr: true,
 			env:     "error os.WriteFile public 4",
 		},
 		{
 			name:    "error os.WriteFile private",
-			args:    args{keyPath: "/tmp12345"},
+			args:    args{keyPath: tmp.Name()},
 			wantErr: true,
 			env:     "error ",
 		},
