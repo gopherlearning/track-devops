@@ -7,12 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherlearning/track-devops/internal/metrics"
+	"github.com/gopherlearning/track-devops/internal/repositories"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-
-	"github.com/gopherlearning/track-devops/internal/metrics"
-	"github.com/gopherlearning/track-devops/internal/repositories"
 )
 
 func newStorage(t *testing.T) *Storage {
@@ -60,10 +59,10 @@ func TestStorage_List(t *testing.T) {
 			fields: fields{
 				metrics: map[string][]metrics.Metrics{
 					"1.1.1.1": {
-						metrics.Metrics{ID: "PollCount", MType: string(metrics.CounterType), Delta: metrics.GetInt64Pointer(3)},
+						metrics.Metrics{ID: "PollCount", MType: metrics.CounterType, Delta: metrics.GetInt64Pointer(3)},
 					},
 					"1.1.1.2": {
-						metrics.Metrics{ID: "RandomValue", MType: string(metrics.GaugeType), Value: metrics.GetFloat64Pointer(11.22)},
+						metrics.Metrics{ID: "RandomValue", MType: metrics.GaugeType, Value: metrics.GetFloat64Pointer(11.22)},
 					},
 				},
 			},
@@ -207,7 +206,7 @@ func TestStorage_Update(t *testing.T) {
 			storage: &Storage{
 				metrics: map[string][]metrics.Metrics{
 					"1.1.1.1": {
-						{ID: "BlaBla", MType: string(metrics.CounterType), Delta: metrics.GetInt64Pointer(10)},
+						{ID: "BlaBla", MType: metrics.CounterType, Delta: metrics.GetInt64Pointer(10)},
 					},
 				},
 			},
@@ -221,4 +220,19 @@ func TestStorage_Update(t *testing.T) {
 		})
 	}
 
+}
+
+func TestStorage_GetMetric(t *testing.T) {
+	s := newStorage(t)
+	_, err := s.GetMetric(context.TODO(), "127.0.0.1", metrics.CounterType, "bla")
+	assert.ErrorIs(t, err, repositories.ErrWrongMetricValue)
+	s.metrics["127.0.0.1"] = []metrics.Metrics{{ID: "bla", MType: metrics.CounterType, Delta: metrics.GetInt64Pointer(1)}}
+	m, err := s.GetMetric(context.TODO(), "127.0.0.1", metrics.CounterType, "bla")
+	assert.NoError(t, err)
+	assert.Equal(t, *m.Delta, int64(1))
+	t.Run("test ping", func(t *testing.T) {
+		assert.NoError(t, s.Ping(context.TODO()))
+		s.PingError = true
+		assert.ErrorContains(t, s.Ping(context.TODO()), "emulate error for test")
+	})
 }

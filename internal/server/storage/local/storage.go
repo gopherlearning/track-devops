@@ -81,7 +81,7 @@ func (s *Storage) Save() error {
 }
 
 // GetMetric ...
-func (s *Storage) GetMetric(ctx context.Context, target, mtype, name string) (*metrics.Metrics, error) {
+func (s *Storage) GetMetric(ctx context.Context, target string, mtype metrics.MetricType, name string) (*metrics.Metrics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if _, ok := s.metrics[target]; ok {
@@ -92,7 +92,7 @@ func (s *Storage) GetMetric(ctx context.Context, target, mtype, name string) (*m
 			}
 		}
 	}
-	return nil, nil
+	return nil, repositories.ErrWrongMetricValue
 }
 
 // Ping заглушка
@@ -113,7 +113,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			return repositories.ErrWrongTarget
 		case len(m.ID) == 0:
 			return repositories.ErrWrongMetricID
-		case len(m.MType) == 0 || (m.MType != string(metrics.CounterType) && m.MType != string(metrics.GaugeType)):
+		case len(m.MType) == 0 || (m.MType != metrics.CounterType && m.MType != metrics.GaugeType):
 			return repositories.ErrWrongMetricType
 		case m.Delta == nil && m.Value == nil:
 			return repositories.ErrWrongMetricValue
@@ -125,10 +125,10 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			if s.metrics[target][i].MType == m.MType && s.metrics[target][i].ID == m.ID {
 				res := s.metrics[target][i]
 				switch m.MType {
-				case string(metrics.CounterType):
+				case metrics.CounterType:
 					m := *res.Delta + *m.Delta
 					res.Delta = &m
-				case string(metrics.GaugeType):
+				case metrics.GaugeType:
 					res.Value = m.Value
 				}
 				s.metrics[target][i] = res

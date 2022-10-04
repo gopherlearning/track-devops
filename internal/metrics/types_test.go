@@ -6,20 +6,35 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
+// import (
+// 	"context"
+// 	"errors"
+// 	"fmt"
+// 	"net/http"
+// 	"net/http/httptest"
+// 	"testing"
+// 	"time"
+
+// 	"github.com/gopherlearning/track-devops/internal/agent"
+// 	"github.com/stretchr/testify/assert"
+// 	"github.com/stretchr/testify/require"
+// 	"go.uber.org/zap"
+// )
+
 func TestMetrics(t *testing.T) {
 	tests := []struct {
 		name        string
 		m           Metric
 		wantName    string
-		wantType    string
+		wantType    MetricType
 		wantDesc    string
 		wantMetrics Metrics
 		wantScrape  error
@@ -28,7 +43,7 @@ func TestMetrics(t *testing.T) {
 		{
 			name:        "PollCount",
 			m:           new(PollCount),
-			wantType:    "counter",
+			wantType:    CounterType,
 			wantName:    "PollCount",
 			wantString:  "1",
 			wantDesc:    "Счётчик, увеличивающийся на 1 при каждом обновлении метрики из пакета runtime",
@@ -38,7 +53,7 @@ func TestMetrics(t *testing.T) {
 		{
 			name:        "RandomValue",
 			m:           new(RandomValue),
-			wantType:    "gauge",
+			wantType:    GaugeType,
 			wantName:    "RandomValue",
 			wantString:  ".",
 			wantDesc:    "Обновляемое рандомное значение",
@@ -48,7 +63,7 @@ func TestMetrics(t *testing.T) {
 		{
 			name:        "TotalMemory",
 			m:           new(TotalMemory),
-			wantType:    "gauge",
+			wantType:    GaugeType,
 			wantName:    "TotalMemory",
 			wantString:  ".",
 			wantDesc:    "Total amount of RAM on this system (gopsutil)",
@@ -58,7 +73,7 @@ func TestMetrics(t *testing.T) {
 		{
 			name:        "FreeMemory",
 			m:           new(FreeMemory),
-			wantType:    "gauge",
+			wantType:    GaugeType,
 			wantName:    "FreeMemory",
 			wantString:  ".",
 			wantDesc:    "Available is what you really want (gopsutil)",
@@ -68,7 +83,7 @@ func TestMetrics(t *testing.T) {
 		{
 			name:        "CPUutilization1",
 			m:           new(CPUutilization1),
-			wantType:    "gauge",
+			wantType:    GaugeType,
 			wantName:    "CPUutilization1",
 			wantString:  ".",
 			wantDesc:    "CPU utilization (точное количество — по числу CPU, определяемому во время исполнения)",
@@ -103,91 +118,138 @@ func TestSendMetrics(t *testing.T) {
 	badURL := "#a"
 	var ctxnil context.Context
 	ctx := context.TODO()
-	errs := make(chan error, 1)
-	sendMetric(ctxnil, errs, http.DefaultClient, badURL, *ms)
-	assert.Error(t, <-errs)
-	errs = make(chan error, 1)
-	sendMetric(ctxnil, errs, http.DefaultClient, badURL, *ms)
-	assert.Error(t, <-errs)
-	errs = make(chan error, 1)
-	sendMetric(ctx, errs, http.DefaultClient, badURL, *ms)
-	assert.Error(t, <-errs)
+	defaultClient := &testClient{http: http.DefaultClient, t: "http"}
+	t.Run("nil context, bad metric", func(t *testing.T) {
+		errs := make(chan error, 1)
+		sendMetric(ctxnil, errs, defaultClient, badURL, *ms)
+		assert.Error(t, <-errs)
+	})
+	t.Run("normal context, bad metric", func(t *testing.T) {
+		errs := make(chan error, 1)
+		sendMetric(ctx, errs, defaultClient, badURL, *ms)
+		assert.Error(t, <-errs)
+	})
 	ms = &Metrics{MType: "counter", ID: "test", Delta: GetInt64Pointer(1111), Value: nil}
-	errs = make(chan error, 1)
-	sendMetric(ctxnil, errs, http.DefaultClient, badURL, *ms)
+	errs := make(chan error, 1)
+	sendMetric(ctxnil, errs, defaultClient, badURL, *ms)
 	assert.Error(t, <-errs)
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		rw.Write([]byte(`Not OK`))
 	}))
 	errs = make(chan error, 1)
-	sendMetric(ctx, errs, http.DefaultClient, server.URL, *ms)
+	sendMetric(ctx, errs, defaultClient, server.URL, *ms)
 	assert.Error(t, <-errs)
-	assert.Error(t, sendMetrics(ctx, http.DefaultClient, server.URL, []Metrics{*ms}))
+	assert.Error(t, sendMetrics(ctx, defaultClient, server.URL, []Metrics{*ms}))
 	emulateError = true
-	sendMetric(ctx, errs, http.DefaultClient, server.URL, *ms)
+	sendMetric(ctx, errs, defaultClient, server.URL, *ms)
 	assert.Error(t, <-errs)
-	assert.Error(t, sendMetrics(ctx, http.DefaultClient, server.URL, []Metrics{*ms}))
+	assert.Error(t, sendMetrics(ctx, defaultClient, server.URL, []Metrics{*ms}))
 	emulateError = false
 	server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte(`OK`))
 	}))
 	errs = make(chan error, 1)
-	sendMetric(ctx, errs, http.DefaultClient, server.URL, *ms)
+	sendMetric(ctx, errs, defaultClient, server.URL, *ms)
 	assert.Nil(t, <-errs)
-	assert.Nil(t, sendMetrics(ctx, http.DefaultClient, server.URL, []Metrics{*ms}))
+	assert.Nil(t, sendMetrics(ctx, defaultClient, server.URL, []Metrics{*ms}))
 	emulateError = true
-	sendMetric(ctx, errs, http.DefaultClient, server.URL, *ms)
+	sendMetric(ctx, errs, defaultClient, server.URL, *ms)
 	assert.Error(t, <-errs)
-	assert.Error(t, sendMetrics(ctx, http.DefaultClient, server.URL, []Metrics{*ms}))
-	assert.Error(t, sendMetrics(ctxnil, http.DefaultClient, server.URL, []Metrics{*ms}))
+	assert.Error(t, sendMetrics(ctx, defaultClient, server.URL, []Metrics{*ms}))
+	assert.Error(t, sendMetrics(ctxnil, defaultClient, server.URL, []Metrics{*ms}))
 	emulateError = false
 }
 
+type testClient struct {
+	http *http.Client
+	t    string
+}
+
+func (c *testClient) Do(req *http.Request) (*http.Response, error) {
+	return c.http.Do(req)
+}
+
+func (c *testClient) SendMetrics(context.Context, []Metrics) error {
+
+	return nil
+}
+func (c *testClient) Type() string {
+	return c.t
+}
+
 func TestSave(t *testing.T) {
+	wg := &sync.WaitGroup{}
 	m := NewStore([]byte("secret"), zap.L())
+	ctx := context.TODO()
 	m.AddCustom(
 		new(PollCount),
 		new(RandomValue),
 	)
-	ctx := context.TODO()
+	t.Run("транспорт не поддерживается", func(t *testing.T) {
+		wg.Add(1)
+		assert.ErrorContains(t, m.Save(ctx, wg, &testClient{http: http.DefaultClient, t: "test"}, "", true, false), "транспорт не поддерживается")
+	})
+	t.Run("тест grpc", func(t *testing.T) {
+		wg.Add(1)
+		assert.NoError(t, m.Save(ctx, wg, &testClient{http: http.DefaultClient, t: "grpc"}, "", true, false))
+	})
 	assert.Nil(t, m.Scrape())
-	assert.Nil(t, m.Save(ctx, nil, nil, true, false))
-	assert.Error(t, m.Save(ctx, &http.Client{}, new(string), true, false))
-	assert.Error(t, m.Save(ctx, &http.Client{}, new(string), true, true))
-	assert.Error(t, m.Save(ctx, &http.Client{}, new(string), false, true))
+	defaultClient := &testClient{http: http.DefaultClient, t: "http"}
+	assert.Error(t, sendMetrics(ctx, defaultClient, "", nil))
+	wg.Add(1)
+	assert.NoError(t, m.Save(ctx, wg, nil, "", true, false))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, "", true, false))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, "", true, true))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, "", false, true))
 	badURL := "#a"
-	assert.Error(t, m.Save(ctx, &http.Client{}, &badURL, false, true))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, badURL, false, true))
 	var ctxnil context.Context
-	assert.Error(t, m.Save(ctxnil, &http.Client{}, &badURL, false, true))
-	time.Sleep(time.Second)
+	wg.Add(1)
+	assert.Error(t, m.Save(ctxnil, wg, defaultClient, badURL, false, true))
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 
 		// assert.Equal(t, req.URL.String(), "/updates/")
 		rw.WriteHeader(http.StatusOK)
 		// rw.Write([]byte(`OK`))
 	}))
-	assert.NoError(t, m.Save(ctx, http.DefaultClient, &server.URL, true, true))
-	assert.NoError(t, m.Save(ctx, http.DefaultClient, &server.URL, true, false))
-	assert.NoError(t, m.Save(ctx, http.DefaultClient, &server.URL, false, false))
+	wg.Add(1)
+	assert.NoError(t, m.Save(ctx, wg, defaultClient, server.URL, true, true))
+	wg.Add(1)
+	assert.NoError(t, m.Save(ctx, wg, defaultClient, server.URL, true, false))
+	wg.Add(1)
+	assert.NoError(t, m.Save(ctx, wg, defaultClient, server.URL, false, false))
 	emulateError = true
-	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, true))
-	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, false))
-	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, false, false))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, server.URL, true, true))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, server.URL, true, false))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, server.URL, false, false))
 	emulateError = false
 	server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		// assert.Equal(t, req.URL.String(), "/updates/")
 		rw.WriteHeader(http.StatusInternalServerError)
 		// rw.Write([]byte(`OK`))
 	}))
-	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, true))
-	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, false))
-	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, false, false))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, server.URL, true, true))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, server.URL, true, false))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, server.URL, false, false))
 	emulateError = true
-	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, true))
-	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, true, false))
-	assert.Error(t, m.Save(ctx, http.DefaultClient, &server.URL, false, false))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, server.URL, true, true))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, server.URL, true, false))
+	wg.Add(1)
+	assert.Error(t, m.Save(ctx, wg, defaultClient, server.URL, false, false))
 	emulateError = false
 }
 
@@ -201,25 +263,34 @@ func TestAllMetrics(t *testing.T) {
 	}
 	m = NewStore([]byte("12"), zap.L())
 	assert.Nil(t, m.AllMetrics())
-	runtimeMetricsOld := make(map[string]string)
-	for k, v := range runtimeMetrics {
+	runtimeMetricsOld := make(map[string]MetricType)
+	for k, v := range m.runtimeMetrics {
 		runtimeMetricsOld[k] = v
 	}
-	runtimeMetrics = nil
+	m.runtimeMetrics = nil
 	m.AddCustom(new(TotalMemory))
 	m.AddCustom(new(PollCount))
 	assert.Nil(t, m.AllMetrics())
-	runtimeMetrics = make(map[string]string)
+	m.runtimeMetrics = make(map[string]MetricType)
 	for k, v := range runtimeMetricsOld {
-		runtimeMetrics[k] = v
+		m.runtimeMetrics[k] = v
 	}
-	runtimeMetrics["TestBadName"] = "guag"
-	assert.Nil(t, m.AllMetrics())
-	assert.Nil(t, m.MemStats())
-	delete(runtimeMetrics, "TestBadName")
+	t.Run("emulate valid error", func(t *testing.T) {
+		emulateError = true
+		m.mu.Lock()
+		m.runtimeMetrics["TestBadName"] = "guag"
+
+		m.mu.Unlock()
+		assert.Nil(t, m.AllMetrics())
+		assert.Nil(t, m.MemStats())
+		emulateError = false
+		delete(m.runtimeMetrics, "TestBadName")
+	})
+
 }
 
 func TestStore(t *testing.T) {
+
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		// Test request parameters
 		assert.Equal(t, req.URL.String(), "/")
@@ -258,7 +329,7 @@ func TestStore(t *testing.T) {
 	m.key = []byte("secret")
 	ms := &Metrics{MType: "counter", ID: "test", Delta: nil, Value: nil}
 	assert.Equal(t, ms.String(), "")
-	ms = &Metrics{MType: "gauge", ID: "test", Delta: nil, Value: nil}
+	ms = &Metrics{MType: GaugeType, ID: "test", Delta: nil, Value: nil}
 	assert.Equal(t, ms.String(), "")
 	ms = &Metrics{MType: "test", ID: "test", Delta: nil, Value: nil}
 
@@ -272,11 +343,11 @@ func TestStore(t *testing.T) {
 	assert.Contains(t, err.Error(), "unexpected end of JSON input")
 	err = ms.UnmarshalJSON([]byte("{}"))
 	assert.Contains(t, err.Error(), "нет метрики такого типа")
-	ms = &Metrics{MType: string(CounterType), ID: "test"}
+	ms = &Metrics{MType: CounterType, ID: "test"}
 	assert.Contains(t, ms.StringFull(), " - ")
-	ms = &Metrics{MType: string(GaugeType), ID: "test"}
+	ms = &Metrics{MType: GaugeType, ID: "test"}
 	assert.Contains(t, ms.StringFull(), " - ")
-	runtimeMetrics["test"] = "badMetric"
+	m.runtimeMetrics["test"] = "badMetric"
 	assert.Nil(t, m.MemStats())
 }
 
@@ -290,8 +361,8 @@ func (m TestErrorMetric) Name() string {
 func (m TestErrorMetric) Desc() string {
 	return "TestErrorMetric"
 }
-func (m TestErrorMetric) Type() string {
-	return "counter"
+func (m TestErrorMetric) Type() MetricType {
+	return CounterType
 }
 
 func (m TestErrorMetric) String() string {

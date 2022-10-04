@@ -46,3 +46,36 @@ curl -sK -v http://localhost:1212/debug/pprof/profile > profiles/result.pprof
 go run cmd/staticlint/main.go ./..
 
 ```
+
+### Установка protoc
+```bash
+# Install depends
+```bash
+
+sudo su -
+cd /tmp
+PROTOV=21.6
+wget -O protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOV}/protoc-${PROTOV}-linux-x86_64.zip
+unzip -o protoc.zip -d /usr/local bin/protoc
+chmod +x /usr/local/bin/protoc
+unzip -o protoc.zip -d /usr/local include/*
+chmod 755 /usr/local/include/ -R
+rm -f protoc.zip
+exit
+
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest 
+go install github.com/golang/mock/mockgen@v1.6.0
+
+```
+```
+
+### Генерация proto файлов
+```bash
+protoc -I=./ \
+--go_out="./" \
+--go-grpc_out="./" \
+./proto/metrics.proto
+
+
+```

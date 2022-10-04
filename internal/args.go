@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -23,6 +22,8 @@ type ServerArgs struct {
 	StoreInterval      time.Duration `name:"store-interval" json:"store_interval" short:"i" help:"интервал времени в секундах, по истечении которого текущие показания сервера сбрасываются на диск (значение 0 — делает запись синхронной)" env:"STORE_INTERVAL"  default:"400s"`
 	GenerateCryptoKeys bool          `help:"Сгенерировать ключи для ассиметричного шифрования"`
 	CryptoKey          string        `name:"crypto-key" json:"crypto_key" help:"Путь к файлу, где хранятся приватный ключ шифрования" env:"CRYPTO_KEY"`
+	TrustedSubnet      string        `name:"trusted-subnet" json:"trusted_subnet" short:"t" help:"Доверенные сети" env:"TRUSTED_SUBNET"`
+	Transport          string        `name:"transport" json:"transport" help:"Режим приёма соединений от агентов (http, grpc)" default:"http" env:"TRANSPORT"`
 }
 
 type AgentArgs struct {
@@ -35,6 +36,8 @@ type AgentArgs struct {
 	PollInterval   time.Duration `name:"poll-interval" json:"poll_interval" short:"p" help:"Poll interval" env:"POLL_INTERVAL" default:"2s"`
 	ReportInterval time.Duration `name:"report-interval" json:"report_interval" short:"r" help:"Report interval" env:"REPORT_INTERVAL" default:"10s"`
 	CryptoKey      string        `name:"crypto-key" json:"crypto_key" help:"Путь к файлу, где хранятся публийчный ключ шифрования" env:"CRYPTO_KEY"`
+	SelfAddress    string        `name:"self-address" json:"self_address" help:"Адрес, используемы в качестве исходящего, для отправки запросов к серверу" env:"CRYPTO_KEY" default:"127.0.0.1"`
+	Transport      string        `name:"transport" json:"transport" help:"Режим соединения с сервером (http, grpc)" default:"http" env:"TRANSPORT"`
 }
 
 // ReadConfig задаёт стандартные значения, читает конфиг, проверяет переменное окружение и флаги
@@ -58,12 +61,7 @@ func ReadConfig(cfg interface{}) {
 func FixArgs() string {
 	var confPath string
 	// только для прохождения теста
-	// skip := false
 	for i := 0; i < len(os.Args); i++ {
-		// if skip {
-		// 	skip = false
-		// 	continue
-		// }
 		if strings.Contains(os.Args[i], "=") {
 			a := strings.Split(os.Args[i], "=")
 			if !strings.Contains(a[0], "-") {
@@ -77,9 +75,7 @@ func FixArgs() string {
 				os.Args[i] = strings.ReplaceAll(os.Args[i], "-r", "--restore")
 				continue
 			}
-			fmt.Println(i, " - ", os.Args[i])
 			os.Args = append(os.Args[:i], append(a, os.Args[i+1:]...)...)
-			// skip = true
 		}
 	}
 	for i := 0; i < len(os.Args); i++ {

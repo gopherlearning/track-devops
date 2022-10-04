@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -27,10 +28,12 @@ import (
 )
 
 type echoServer struct {
-	s      repositories.Repository
-	e      *echo.Echo
-	logger *zap.Logger
-	key    []byte
+	trusted    *net.IPNet
+	s          repositories.Repository
+	e          *echo.Echo
+	logger     *zap.Logger
+	key        []byte
+	privateKey *rsa.PrivateKey
 }
 
 // echoServerOptionFunc определяет тип функции для опций.
@@ -64,41 +67,8 @@ func WithCryptoKey(keyPath string) echoServerOptionFunc {
 		return nil
 	}
 	return func(c *echoServer) {
-		c.e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				if c.Request().Method != echo.POST {
-					return next(c)
-				}
-				if c.Request().Header.Get("Content-Type") != "application/json" {
-					return next(c)
-				}
-				hash := sha512.New()
-				r := c.Request()
-				encrypted := make([]byte, 0)
-				bufEncrypted := bytes.NewBuffer(encrypted)
-				for {
-					b := make([]byte, 0)
-					buf := bytes.NewBuffer(b)
-					v, _ := io.CopyN(buf, r.Body, int64(privKey.PublicKey.Size()))
-					if v == 0 {
-						break
-					}
-					plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, privKey, buf.Bytes(), nil)
-					if err != nil {
-						zap.L().Debug(err.Error())
-						return c.HTML(http.StatusNotAcceptable, err.Error())
-					}
-					_, err = bufEncrypted.Write(plaintext)
-					if err != nil {
-						zap.L().Debug(err.Error())
-						return c.HTML(http.StatusNotAcceptable, err.Error())
-					}
-				}
-				r.ContentLength = int64(bufEncrypted.Len())
-				r.Body = io.NopCloser(bufEncrypted)
-				return next(c)
-			}
-		})
+		c.privateKey = privKey
+		c.e.Use(c.cryptoMiddleware)
 	}
 }
 
@@ -118,16 +88,45 @@ func WithPprof(usePprof bool) echoServerOptionFunc {
 	}
 }
 
+// WithTrustedSubnet задаёт сеть доверенных адресов агентов
+func WithTrustedSubnet(trusted string) echoServerOptionFunc {
+	return func(c *echoServer) {
+		if len(trusted) == 0 {
+			return
+		}
+		_, trusted, err := net.ParseCIDR(trusted)
+		if err != nil {
+			if c.logger != nil {
+				c.logger.Error(err.Error())
+			}
+			return
+		}
+		c.trusted = trusted
+		c.e.Use(c.checkTrusted)
+	}
+}
+
 // NewechoServer returns http server
-func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) (*echoServer, error) {
+func NewEchoServer(store repositories.Repository, listen string, debug bool, opts ...echoServerOptionFunc) (*echoServer, error) {
 	e := echo.New()
-	// e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	logger, _ := zap.NewDevelopment()
-	serv := &echoServer{s: s, e: e, logger: logger}
+	serv := &echoServer{s: store, e: e, logger: zap.L()}
 	serv.e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogURI:    true,
+		LogStatus: true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			serv.logger.Info("request",
+				zap.String("URI", v.URI),
+				zap.Int("status", v.Status),
+			)
+			return nil
+		},
+	}))
+	if !debug {
+		serv.e.Use(middleware.Recover())
+	}
 	serv.e.POST("/update/", serv.UpdateMetricJSON)
 	serv.e.POST("/updates/", serv.UpdatesMetricJSON)
 	serv.e.POST("/value/", serv.GetMetricJSON)
@@ -141,12 +140,21 @@ func NewEchoServer(s repositories.Repository, opts ...echoServerOptionFunc) (*ec
 		}
 		opt(serv)
 	}
+	if len(listen) != 0 {
+		go func() {
+			err := serv.e.Start(listen)
+			if err != nil && err != http.ErrServerClosed {
+				serv.logger.Error(err.Error())
+			}
+		}()
+
+	}
 	return serv, nil
 }
 
 // GetMetric ...
 func (h *echoServer) GetMetric(c echo.Context) error {
-	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), c.Param("type"), c.Param("name")); v != nil {
+	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), metrics.MetricType(c.Param("type")), c.Param("name")); v != nil {
 		return c.HTML(http.StatusOK, v.String())
 	}
 	return c.NoContent(http.StatusNotFound)
@@ -180,9 +188,10 @@ func (h *echoServer) ListMetrics(c echo.Context) error {
 // UpdateMetric ...
 func (h *echoServer) UpdateMetric(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusMethodNotAllowed)
+		c.Response().Status = http.StatusMethodNotAllowed
+		return errors.New("method not allowed")
 	}
-	m := metrics.Metrics{MType: c.Param("type"), ID: c.Param("name")}
+	m := metrics.Metrics{MType: metrics.MetricType(c.Param("type")), ID: c.Param("name")}
 	switch c.Param("type") {
 	case string(metrics.CounterType):
 		i, err := strconv.Atoi(c.Param("value"))
@@ -197,9 +206,10 @@ func (h *echoServer) UpdateMetric(c echo.Context) error {
 		}
 		m.Value = metrics.GetFloat64Pointer(float64(i))
 	default:
+
 		return c.HTML(http.StatusNotImplemented, repositories.ErrWrongMetricType.Error())
 	}
-	if err := h.s.UpdateMetric(context.TODO(), c.RealIP(), m); err != nil {
+	if err := h.s.UpdateMetric(c.Request().Context(), c.RealIP(), m); err != nil {
 		switch err {
 		case repositories.ErrWrongMetricURL:
 			return c.HTML(http.StatusNotFound, err.Error())
@@ -217,7 +227,8 @@ func (h *echoServer) UpdateMetric(c echo.Context) error {
 // UpdatesMetricJSON ...
 func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusMethodNotAllowed)
+		c.Response().Status = http.StatusMethodNotAllowed
+		return errors.New("method not allowed")
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
@@ -231,6 +242,7 @@ func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if len(h.key) != 0 {
+		fmt.Println(h.key)
 		for _, v := range mm {
 			recived := v.Hash
 			err = v.Sign(h.key)
@@ -258,7 +270,8 @@ func (h *echoServer) UpdatesMetricJSON(c echo.Context) error {
 // UpdateMetricJSON ...
 func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusMethodNotAllowed)
+		c.Response().Status = http.StatusMethodNotAllowed
+		return errors.New("method not allowed")
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
@@ -297,7 +310,8 @@ func (h *echoServer) UpdateMetricJSON(c echo.Context) error {
 // GetMetricJSON ...
 func (h *echoServer) GetMetricJSON(c echo.Context) error {
 	if c.Request().Method != http.MethodPost {
-		return c.NoContent(http.StatusMethodNotAllowed)
+		c.Response().Status = http.StatusMethodNotAllowed
+		return errors.New("method not allowed")
 	}
 	if c.Request().Header["Content-Type"][0] != "application/json" {
 		return c.String(http.StatusBadRequest, "only application/json content are allowed!")
@@ -311,7 +325,6 @@ func (h *echoServer) GetMetricJSON(c echo.Context) error {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 	if v, _ := h.s.GetMetric(c.Request().Context(), c.RealIP(), m.MType, m.ID); v != nil {
-
 		if len(h.key) != 0 {
 			err = v.Sign(h.key)
 			if err != nil {
@@ -340,4 +353,52 @@ func (h *echoServer) Stop() error {
 	defer cancel()
 
 	return h.e.Shutdown(ctx)
+}
+
+// CheckTrusted проверяет вазрешён ли доступ клиенту на основе адреса
+func (h *echoServer) checkTrusted(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		realIP := c.Request().Header.Get("X-Real-IP")
+		if len(realIP) == 0 {
+			return c.HTML(http.StatusForbidden, "access denied, no header")
+		}
+		ip := net.ParseIP(realIP)
+		if ip == nil {
+			return c.HTML(http.StatusForbidden, "access denied, bad ip")
+		}
+		if !h.trusted.Contains(ip) {
+			return c.HTML(http.StatusForbidden, "access denied")
+		}
+		return next(c)
+	}
+}
+
+func (h *echoServer) cryptoMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		hash := sha512.New()
+		r := c.Request()
+		encrypted := make([]byte, 0)
+		bufEncrypted := bytes.NewBuffer(encrypted)
+		for {
+			b := make([]byte, 0)
+			buf := bytes.NewBuffer(b)
+			v, _ := io.CopyN(buf, r.Body, int64(h.privateKey.PublicKey.Size()))
+			if v == 0 {
+				break
+			}
+			plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, h.privateKey, buf.Bytes(), nil)
+			if err != nil {
+				zap.L().Debug(err.Error())
+				return c.HTML(http.StatusNotAcceptable, err.Error())
+			}
+			_, err = bufEncrypted.Write(plaintext)
+			if err != nil {
+				zap.L().Debug(err.Error())
+				return c.HTML(http.StatusNotAcceptable, err.Error())
+			}
+		}
+		r.ContentLength = int64(bufEncrypted.Len())
+		r.Body = io.NopCloser(bufEncrypted)
+		return next(c)
+	}
 }

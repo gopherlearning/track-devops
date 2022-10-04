@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -18,13 +19,22 @@ import (
 )
 
 var _ repositories.Repository = (*Storage)(nil)
+var ErrContextClosed = errors.New("context closed")
+var ErrBD = errors.New("database conn error")
 
 // Storage postgres storage
 type Storage struct {
-	db                 *pgxpool.Pool
+	db                 PgxIface
 	connConfig         *pgxpool.Config
 	logger             *zap.Logger
 	maxConnectAttempts int
+}
+type PgxIface interface {
+	Begin(context.Context) (pgx.Tx, error)
+	Close()
+	Ping(context.Context) error
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
 }
 
 // NewStorage reterns new  postgres storage
@@ -74,12 +84,12 @@ func (s *Storage) Ping(ctx context.Context) error {
 	case err := <-ping:
 		return err
 	case <-ctx_.Done():
-		return fmt.Errorf("context closed")
+		return ErrContextClosed
 	}
 }
 
 // GetMetric ...
-func (s *Storage) GetMetric(ctx context.Context, target string, mType string, name string) (*metrics.Metrics, error) {
+func (s *Storage) GetMetric(ctx context.Context, target string, mType metrics.MetricType, name string) (*metrics.Metrics, error) {
 	var hash string
 	var mdelta int64
 	var mvalue float64
@@ -89,14 +99,14 @@ func (s *Storage) GetMetric(ctx context.Context, target string, mType string, na
 		return nil, err
 	}
 	switch mType {
-	case string(metrics.CounterType):
+	case metrics.CounterType:
 		return &metrics.Metrics{
 			ID:    name,
 			MType: mType,
 			Delta: &mdelta,
 			Hash:  hash,
 		}, nil
-	case string(metrics.GaugeType):
+	case metrics.GaugeType:
 		return &metrics.Metrics{
 			ID:    name,
 			MType: mType,
@@ -125,7 +135,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 	for _, n := range mm {
 		o, ok := forAdd[n.ID]
 		if ok {
-			if o.MType == string(metrics.CounterType) {
+			if o.MType == metrics.CounterType {
 				m := *o.Delta + *n.Delta
 				n.Delta = &m
 			}
@@ -137,7 +147,7 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 			forAdd[n.ID] = n
 			continue
 		}
-		if n.MType == string(metrics.CounterType) {
+		if n.MType == metrics.CounterType {
 			m := *o.Delta + *n.Delta
 			n.Delta = &m
 		}
@@ -151,9 +161,9 @@ func (s *Storage) UpdateMetric(ctx context.Context, target string, mm ...metrics
 	}
 	defer func() {
 		if err != nil {
-			err = tx.Rollback(ctx)
-			if err != nil {
-				s.logger.Error(err.Error())
+			err1 := tx.Rollback(ctx)
+			if err1 != nil {
+				s.logger.Error(err1.Error())
 			}
 		}
 	}()
@@ -204,7 +214,7 @@ func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metr
 		var target string
 		var id string
 		var hash string
-		var mtype string
+		var mtype metrics.MetricType
 		var mdelta int64
 		var mvalue float64
 		err = rows.Scan(&target, &id, &hash, &mtype, &mdelta, &mvalue)
@@ -216,14 +226,14 @@ func (s *Storage) Metrics(ctx context.Context, target string) (map[string][]metr
 			res[target] = make([]metrics.Metrics, 0)
 		}
 		switch mtype {
-		case string(metrics.CounterType):
+		case metrics.CounterType:
 			res[target] = append(res[target], metrics.Metrics{
 				ID:    id,
 				MType: mtype,
 				Delta: &mdelta,
 				Hash:  hash,
 			})
-		case string(metrics.GaugeType):
+		case metrics.GaugeType:
 			res[target] = append(res[target], metrics.Metrics{
 				ID:    id,
 				MType: mtype,

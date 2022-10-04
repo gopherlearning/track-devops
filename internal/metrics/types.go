@@ -18,7 +18,7 @@ var emulateError bool
 type Metric interface {
 	Name() string
 	Desc() string
-	Type() string
+	Type() MetricType
 	String() string
 	Scrape() error
 	// Metrics преобразует в объект для хранения
@@ -81,7 +81,7 @@ func (m PollCount) Name() string {
 func (m PollCount) Desc() string {
 	return metricDesc[tPollCount]
 }
-func (m PollCount) Type() string {
+func (m PollCount) Type() MetricType {
 	return "counter"
 }
 
@@ -118,7 +118,7 @@ func (m RandomValue) Name() string {
 func (m RandomValue) Desc() string {
 	return metricDesc[tRandomValue]
 }
-func (m RandomValue) Type() string {
+func (m RandomValue) Type() MetricType {
 	return "gauge"
 }
 func (m RandomValue) String() string {
@@ -152,7 +152,7 @@ func (m TotalMemory) Name() string {
 func (m TotalMemory) Desc() string {
 	return metricDesc[tTotalMemory]
 }
-func (m TotalMemory) Type() string {
+func (m TotalMemory) Type() MetricType {
 	return "gauge"
 }
 func (m TotalMemory) String() string {
@@ -190,7 +190,7 @@ func (m FreeMemory) Name() string {
 func (m FreeMemory) Desc() string {
 	return metricDesc[tFreeMemory]
 }
-func (m FreeMemory) Type() string {
+func (m FreeMemory) Type() MetricType {
 	return "gauge"
 }
 func (m FreeMemory) String() string {
@@ -228,7 +228,7 @@ func (m CPUutilization1) Name() string {
 func (m CPUutilization1) Desc() string {
 	return metricDesc[tCPUutilization1]
 }
-func (m CPUutilization1) Type() string {
+func (m CPUutilization1) Type() MetricType {
 	return "gauge"
 }
 func (m CPUutilization1) String() string {

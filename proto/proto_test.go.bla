@@ -1,0 +1,63 @@
+package proto
+
+import (
+	context "context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"go.nhat.io/grpcmock"
+)
+
+func mockItemServiceServer(m ...grpcmock.ServerOption) grpcmock.ServerMockerWithContextDialer {
+	opts := []grpcmock.ServerOption{grpcmock.RegisterService(RegisterMonitoringServer)}
+	opts = append(opts, m...)
+
+	return grpcmock.MockServerWithBufConn(opts...)
+}
+
+func TestPing(t *testing.T) {
+	t.Parallel()
+
+	const reqPing = "track_devops.proto.Monitoring/Ping"
+
+	testCases := []struct {
+		scenario   string
+		mockServer grpcmock.ServerMockerWithContextDialer
+		request    Empty
+		expected   Empty
+	}{
+		{
+			scenario: "success",
+			mockServer: mockItemServiceServer(func(s *grpcmock.Server) {
+				s.ExpectUnary(reqPing).
+					WithPayload(&Empty{}).
+					Return(&Empty{})
+			}),
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.scenario, func(t *testing.T) {
+			t.Parallel()
+
+			_, dialer := tc.mockServer(t)
+
+			// Use the dialer in your client, do the request and assertions.
+			// For example:
+			out := &Empty{}
+			err := grpcmock.InvokeUnary(context.Background(),
+				reqPing, &Empty{}, out,
+				grpcmock.WithInsecure(),
+				grpcmock.WithContextDialer(dialer),
+			)
+
+			require.NoError(t, err)
+
+			// assert.Equal(t, "Item #1", out.Name)
+
+			// Server is closed at the end, and the ExpectationsWereMet() is also called, automatically!
+		})
+	}
+
+}
